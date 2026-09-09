@@ -1,0 +1,32 @@
+name: ad-recon
+description: "Active Directory enumeration"
+timeout: 3600
+
+inputs:
+  - name: target
+    required: true
+  - name: domain
+    required: true
+  - name: username
+    default: ""
+  - name: password
+    default: ""
+
+steps:
+  - name: ldap_enum
+    cmd: "ldapsearch -H ldap://{target} -x -b 'DC={domain}' -s base namingContexts 2>&1 || echo 'LDAP query completed'"
+    tags: [recon, T1087]
+    timeout: 120
+    on_fail: continue
+
+  - name: smb_shares
+    cmd: "smbclient -L //{target} -N 2>&1 || echo 'SMB enumeration completed'"
+    tags: [recon, T1135]
+    timeout: 120
+    on_fail: continue
+
+  - name: dns_enum
+    cmd: "nslookup -type=any {domain} {target} 2>&1 || echo 'DNS enumeration completed'"
+    tags: [recon, T1018]
+    timeout: 60
+    on_fail: continue

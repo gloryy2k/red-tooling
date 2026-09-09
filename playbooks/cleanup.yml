@@ -1,0 +1,46 @@
+name: cleanup
+description: "Engagement cleanup — remove artifacts, verify clean state"
+timeout: 1800
+
+inputs:
+  - name: target
+    required: true
+  - name: username
+    default: ""
+  - name: password
+    default: ""
+  - name: domain
+    default: ""
+
+steps:
+  - name: list_artifacts
+    cmd: "echo '=== Listing potential artifacts to clean ===' && echo 'Check: dropped tools, created accounts, scheduled tasks, registry keys, web shells'"
+    tags: [cleanup]
+    timeout: 30
+
+  - name: check_accounts
+    cmd: "crackmapexec smb {target} -u '{username}' -p '{password}' -d '{domain}' -x 'net user' 2>&1"
+    tags: [cleanup, T1136]
+    timeout: 120
+    on_fail: continue
+    depends_on: list_artifacts
+
+  - name: check_tasks
+    cmd: "crackmapexec smb {target} -u '{username}' -p '{password}' -d '{domain}' -x 'schtasks /query /fo LIST | findstr /i TaskName' 2>&1"
+    tags: [cleanup, T1053]
+    timeout: 120
+    on_fail: continue
+    depends_on: list_artifacts
+
+  - name: check_services
+    cmd: "crackmapexec smb {target} -u '{username}' -p '{password}' -d '{domain}' -x 'sc query type= service state= all | findstr SERVICE_NAME' 2>&1"
+    tags: [cleanup, T1543]
+    timeout: 120
+    on_fail: continue
+    depends_on: list_artifacts
+
+  - name: summary
+    cmd: "echo '=== CLEANUP CHECKLIST ===' && echo '[ ] Remove dropped tools/binaries' && echo '[ ] Delete created user accounts' && echo '[ ] Remove scheduled tasks' && echo '[ ] Clean registry modifications' && echo '[ ] Remove web shells' && echo '[ ] Clear event logs (if authorized)' && echo '[ ] Document all cleanup actions'"
+    tags: [cleanup]
+    timeout: 30
+    depends_on: check_accounts

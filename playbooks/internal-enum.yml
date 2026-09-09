@@ -1,0 +1,49 @@
+name: internal-enum
+description: "Internal network enumeration — host discovery, service identification, quick wins"
+timeout: 3600
+
+inputs:
+  - name: target
+    required: true
+  - name: username
+    default: ""
+  - name: password
+    default: ""
+  - name: domain
+    default: ""
+
+steps:
+  - name: ping_sweep
+    cmd: "nmap -sn {target} -oG {work_dir}/alive.gnmap 2>&1"
+    tags: [enum, T1018]
+    timeout: 300
+
+  - name: quick_ports
+    cmd: "nmap -sV --top-ports 1000 -T4 {target} -oN {work_dir}/quick-ports.txt -oX {work_dir}/quick-ports.xml 2>&1"
+    tags: [enum, T1046]
+    timeout: 600
+    depends_on: ping_sweep
+
+  - name: smb_signing
+    cmd: "crackmapexec smb {target} --gen-relay-list {work_dir}/relay-targets.txt 2>&1"
+    tags: [enum, T1557.001]
+    timeout: 300
+    on_fail: continue
+
+  - name: null_session
+    cmd: "crackmapexec smb {target} -u '' -p '' --shares 2>&1"
+    tags: [enum, T1135]
+    timeout: 300
+    on_fail: continue
+
+  - name: mssql_check
+    cmd: "crackmapexec mssql {target} -u '{username}' -p '{password}' -d '{domain}' 2>&1 || echo 'MSSQL check completed'"
+    tags: [enum, T1021]
+    timeout: 300
+    on_fail: continue
+
+  - name: ldap_anon
+    cmd: "ldapsearch -H ldap://{target} -x -s base namingContexts 2>&1 || echo 'LDAP check completed'"
+    tags: [enum, T1087.002]
+    timeout: 120
+    on_fail: continue

@@ -1,0 +1,37 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/rt
+
+# Test output
+*.db
+*.db.enc
+*.db-wal
+*.db-shm
+*.key
+
+# IDE / editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code
+.claude/
+
+# Temp
+tmp/
+*.tmp
+*.log
+
+# Concept docs (internal planning)
+rt-concept-*.md

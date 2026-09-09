@@ -1,0 +1,26 @@
+name: recon
+description: "Network reconnaissance — port scan + service detection"
+timeout: 1800
+
+inputs:
+  - name: target
+    required: true
+  - name: ports
+    default: "-"
+
+steps:
+  - name: ping_sweep
+    cmd: "nmap -sn {target} -oG {work_dir}/ping.gnmap"
+    tags: [recon, T1018]
+    timeout: 300
+
+  - name: port_scan
+    cmd: "nmap -sV -sC -T4 -p {ports} {target} -oX {work_dir}/nmap.xml -oN {work_dir}/nmap.txt"
+    tags: [recon, T1046]
+    timeout: 600
+    depends_on: ping_sweep
+
+  - name: list_results
+    cmd: "cat {work_dir}/nmap.txt"
+    tags: [recon]
+    depends_on: port_scan

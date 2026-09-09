@@ -1,0 +1,44 @@
+name: persistence-check
+description: "Check for common persistence mechanisms on a Windows target"
+timeout: 1800
+
+inputs:
+  - name: target
+    required: true
+  - name: username
+    default: ""
+  - name: password
+    default: ""
+  - name: domain
+    default: ""
+
+steps:
+  - name: run_keys
+    cmd: "crackmapexec smb {target} -u '{username}' -p '{password}' -d '{domain}' -x 'reg query HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run 2>&1 && reg query HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run 2>&1'"
+    tags: [persistence, T1547.001]
+    timeout: 120
+    on_fail: continue
+
+  - name: services
+    cmd: "crackmapexec smb {target} -u '{username}' -p '{password}' -d '{domain}' -x 'wmic service where \"startmode=auto\" get name,pathname,startname /format:list' 2>&1"
+    tags: [persistence, T1543.003]
+    timeout: 180
+    on_fail: continue
+
+  - name: scheduled_tasks
+    cmd: "crackmapexec smb {target} -u '{username}' -p '{password}' -d '{domain}' -x 'schtasks /query /fo CSV /v | findstr /i /v \"disabled\"' 2>&1"
+    tags: [persistence, T1053.005]
+    timeout: 180
+    on_fail: continue
+
+  - name: startup_folder
+    cmd: "crackmapexec smb {target} -u '{username}' -p '{password}' -d '{domain}' -x 'dir \"C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\" /b 2>&1'"
+    tags: [persistence, T1547.001]
+    timeout: 120
+    on_fail: continue
+
+  - name: wmi_subscriptions
+    cmd: "crackmapexec smb {target} -u '{username}' -p '{password}' -d '{domain}' -x 'wmic /namespace:\\\\root\\subscription PATH __EventConsumer get Name,CommandLineTemplate 2>&1'"
+    tags: [persistence, T1546.003]
+    timeout: 120
+    on_fail: continue

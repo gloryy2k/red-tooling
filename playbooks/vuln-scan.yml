@@ -1,0 +1,32 @@
+name: vuln-scan
+description: "Web vulnerability scanning with nuclei"
+timeout: 3600
+
+inputs:
+  - name: target
+    required: true
+
+steps:
+  - name: httpx_probe
+    cmd: "echo {target} | httpx -silent -title -status-code -o {work_dir}/web.txt"
+    tags: [recon]
+    timeout: 120
+    on_fail: continue
+
+  - name: nuclei_critical
+    cmd: "nuclei -u {target} -severity critical,high -j -o {work_dir}/nuclei-high.json"
+    tags: [vuln-scan, T1190]
+    timeout: 1200
+    on_fail: continue
+
+  - name: nuclei_all
+    cmd: "nuclei -u {target} -severity medium,low -j -o {work_dir}/nuclei-all.json"
+    tags: [vuln-scan]
+    timeout: 1200
+    depends_on: nuclei_critical
+    on_fail: continue
+
+  - name: summary
+    cmd: "cat {work_dir}/nuclei-high.json 2>/dev/null || echo 'No critical/high findings'"
+    tags: [vuln-scan]
+    depends_on: nuclei_critical

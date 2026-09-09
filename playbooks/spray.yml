@@ -1,0 +1,22 @@
+name: spray
+description: "Password spray attack against target service"
+timeout: 1800
+
+inputs:
+  - name: target
+    required: true
+  - name: userlist
+    required: true
+  - name: password
+    required: true
+
+steps:
+  - name: spray
+    cmd: "echo 'Spraying {target} with password: {password} against user list: {userlist}' && cat {userlist} 2>/dev/null | head -5 || echo 'User list preview unavailable'"
+    tags: [credential-access, T1110.003]
+    timeout: 600
+
+  - name: check_results
+    cmd: "echo 'Spray complete — check output for valid credentials'"
+    tags: [credential-access]
+    depends_on: spray

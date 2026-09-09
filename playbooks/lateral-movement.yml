@@ -1,0 +1,43 @@
+name: lateral-movement
+description: "Lateral movement — enumerate accessible hosts and test credential reuse"
+timeout: 3600
+
+inputs:
+  - name: target
+    required: true
+  - name: username
+    required: true
+  - name: password
+    required: true
+  - name: domain
+    default: ""
+
+steps:
+  - name: smb_login_check
+    cmd: "crackmapexec smb {target} -u '{username}' -p '{password}' -d '{domain}' 2>&1"
+    tags: [lateral, T1021.002]
+    timeout: 300
+
+  - name: share_enum
+    cmd: "crackmapexec smb {target} -u '{username}' -p '{password}' -d '{domain}' --shares 2>&1"
+    tags: [lateral, T1135]
+    timeout: 300
+    depends_on: smb_login_check
+
+  - name: local_admin_check
+    cmd: "crackmapexec smb {target} -u '{username}' -p '{password}' -d '{domain}' --local-auth 2>&1"
+    tags: [lateral, T1078]
+    timeout: 300
+    on_fail: continue
+
+  - name: winrm_check
+    cmd: "crackmapexec winrm {target} -u '{username}' -p '{password}' -d '{domain}' 2>&1"
+    tags: [lateral, T1021.006]
+    timeout: 300
+    on_fail: continue
+
+  - name: rdp_check
+    cmd: "crackmapexec rdp {target} -u '{username}' -p '{password}' -d '{domain}' 2>&1"
+    tags: [lateral, T1021.001]
+    timeout: 300
+    on_fail: continue

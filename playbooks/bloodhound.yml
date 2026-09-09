@@ -1,0 +1,31 @@
+name: bloodhound
+description: "BloodHound AD collection — gather and import AD relationship data"
+timeout: 3600
+
+inputs:
+  - name: target
+    required: true
+  - name: domain
+    required: true
+  - name: username
+    required: true
+  - name: password
+    required: true
+
+steps:
+  - name: collect
+    cmd: "bloodhound-python -c All -u '{username}' -p '{password}' -d '{domain}' -dc {target} --zip -o {work_dir}/ 2>&1"
+    tags: [bloodhound, T1087.002]
+    timeout: 1800
+
+  - name: list_output
+    cmd: "ls -la {work_dir}/*.zip {work_dir}/*.json 2>/dev/null || echo 'No output files found'"
+    tags: [bloodhound]
+    timeout: 30
+    depends_on: collect
+
+  - name: quick_analysis
+    cmd: "echo '=== BloodHound Collection Summary ===' && wc -l {work_dir}/*.json 2>/dev/null && echo '=== ZIP Files ===' && ls -lh {work_dir}/*.zip 2>/dev/null || echo 'Collection files listed'"
+    tags: [bloodhound]
+    timeout: 30
+    depends_on: list_output
