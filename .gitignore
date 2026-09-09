@@ -28,6 +28,9 @@ desktop.ini
 # Claude Code
 .claude/
 
+# Build output
+dist/
+
 # Temp
 tmp/
 *.tmp

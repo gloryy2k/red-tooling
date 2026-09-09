@@ -80,6 +80,7 @@ func main() {
 		wipeCmd,
 		remoteExecCmd,
 		remoteSessionCmd,
+		initWorkspaceCmd,
 	)
 
 	if err := rootCmd.Execute(); err != nil {
