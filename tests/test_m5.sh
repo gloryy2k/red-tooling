@@ -2,7 +2,7 @@
 # M5 End-to-End Test Script — Web Dashboard + Security
 set -e
 
-RT="./rt.exe"
+RT="${RT:-../rt.exe}"
 export RT_HOME="$(pwd)/test-rt-home"
 rm -rf "$RT_HOME"
 

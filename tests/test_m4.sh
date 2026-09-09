@@ -2,7 +2,7 @@
 # M4 End-to-End Test Script — Report Engine + Export
 set -e
 
-RT="./rt.exe"
+RT="${RT:-../rt.exe}"
 export RT_HOME="$(pwd)/test-rt-home"
 rm -rf "$RT_HOME"
 

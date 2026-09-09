@@ -234,11 +234,11 @@ go test ./internal/...
 ### End-to-end tests
 
 ```bash
-bash test_m3.sh   # findings, attachments, delete/redact
-bash test_m4.sh   # reports + exports
-bash test_m5.sh   # web dashboard + RBAC
-bash test_m6.sh   # agent framework + playbooks
-bash test_m7.sh   # scope, checklist, search, import
+bash tests/test_m3.sh   # findings, attachments, delete/redact
+bash tests/test_m4.sh   # reports + exports
+bash tests/test_m5.sh   # web dashboard + RBAC
+bash tests/test_m6.sh   # agent framework + playbooks
+bash tests/test_m7.sh   # scope, checklist, search, import
 ```
 
 ## Security

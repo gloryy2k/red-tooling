@@ -2,7 +2,7 @@
 # M6 End-to-End Test Script — Agent Framework + Skills
 set -e
 
-RT="./rt.exe"
+RT="${RT:-../rt.exe}"
 export RT_HOME="$(pwd)/test-rt-home"
 rm -rf "$RT_HOME"
 

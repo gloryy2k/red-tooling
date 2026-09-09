@@ -2,7 +2,7 @@
 # M2 End-to-End Test Script — Auto-Flag + Credential Locker
 set -e
 
-RT="./rt.exe"
+RT="${RT:-../rt.exe}"
 export RT_HOME="$(pwd)/test-rt-home"
 rm -rf "$RT_HOME"
 

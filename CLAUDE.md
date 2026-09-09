@@ -93,7 +93,7 @@ go build -o rt.exe ./cmd/rt/
 
 ## When working on this codebase
 - Always run `go build -o rt.exe ./cmd/rt/` to verify compilation
-- Test with `bash test_m<N>.sh` scripts in project root
+- Test with `bash tests/test_m<N>.sh` scripts in tests/ folder
 - Set `RT_HOME` env var to avoid polluting real ~/.rt during testing
 - The database must be unlocked before most commands work
 - Evidence chain integrity is critical — never modify evidence rows directly

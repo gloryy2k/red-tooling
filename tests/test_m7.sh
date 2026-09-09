@@ -2,7 +2,7 @@
 # M7 End-to-End Test Script — Scope, Checklist, Search, Import, Polish
 set -e
 
-RT="./rt.exe"
+RT="${RT:-../rt.exe}"
 export RT_HOME="$(pwd)/test-rt-home"
 rm -rf "$RT_HOME"
 
