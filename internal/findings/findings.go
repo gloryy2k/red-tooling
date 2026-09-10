@@ -209,6 +209,28 @@ func SetRecommendation(db *sql.DB, id int64, recommendation, operator string) er
 	return nil
 }
 
+// Delete removes a finding by ID.
+func Delete(db *sql.DB, id int64, operator string) error {
+	_, err := db.Exec(`DELETE FROM findings WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("delete finding: %w", err)
+	}
+	audit.Log(db, operator, "finding.delete", "finding", fmt.Sprintf("%d", id), nil)
+	return nil
+}
+
+// Update modifies a finding's title, description, priority, and MITRE mappings.
+func Update(db *sql.DB, id int64, title, description, priority string, mitre []string, operator string) error {
+	mitreJSON, _ := json.Marshal(mitre)
+	_, err := db.Exec(`UPDATE findings SET title = ?, description = ?, priority = ?, mitre = ? WHERE id = ?`,
+		title, description, priority, string(mitreJSON), id)
+	if err != nil {
+		return fmt.Errorf("update finding: %w", err)
+	}
+	audit.Log(db, operator, "finding.update", "finding", fmt.Sprintf("%d", id), map[string]string{"title": title})
+	return nil
+}
+
 // Count returns total findings for an engagement.
 func Count(db *sql.DB, engID string) int {
 	var n int

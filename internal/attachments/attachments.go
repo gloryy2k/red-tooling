@@ -151,6 +151,53 @@ func Export(db *sql.DB, attachmentID int64, outDir, operator string) (string, er
 	return outPath, nil
 }
 
+// GetContent returns an attachment's raw content and metadata for serving.
+func GetContent(db *sql.DB, attachmentID int64) ([]byte, string, string, error) {
+	var content []byte
+	var filename, filetype string
+	err := db.QueryRow(
+		`SELECT content, filename, COALESCE(filetype,'') FROM attachments WHERE id = ?`, attachmentID,
+	).Scan(&content, &filename, &filetype)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("attachment not found: %w", err)
+	}
+	return content, filename, filetype, nil
+}
+
+// ListByFinding returns attachments for evidence entries linked to a finding.
+func ListByFinding(db *sql.DB, findingID int64) ([]Attachment, error) {
+	rows, err := db.Query(
+		`SELECT a.id, a.evidence_id, a.filename, COALESCE(a.caption,''), COALESCE(a.filetype,''),
+		        a.size_bytes, a.content_hash, a.created_at
+		 FROM attachments a
+		 WHERE a.evidence_id IN (
+		   SELECT json_each.value FROM findings f, json_each(f.evidence_ids) WHERE f.id = ?
+		 )
+		 ORDER BY a.created_at DESC`, findingID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []Attachment
+	for rows.Next() {
+		var a Attachment
+		if err := rows.Scan(&a.ID, &a.EvidenceID, &a.Filename, &a.Caption,
+			&a.Filetype, &a.SizeBytes, &a.ContentHash, &a.CreatedAt); err != nil {
+			return nil, err
+		}
+		list = append(list, a)
+	}
+	return list, rows.Err()
+}
+
+// Count returns total attachments in the database.
+func Count(db *sql.DB) int {
+	var n int
+	db.QueryRow(`SELECT COUNT(*) FROM attachments`).Scan(&n)
+	return n
+}
+
 func sanitizeFilename(name string) string {
 	name = filepath.Base(name)
 	name = strings.ReplaceAll(name, "..", "")

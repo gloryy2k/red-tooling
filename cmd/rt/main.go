@@ -47,6 +47,7 @@ func main() {
 		verifyFindingCmd,
 		mergeFindingsCmd,
 		recommendCmd,
+		screenshotCmd,
 		attachCmd,
 		attachmentsCmd,
 		exportAttachCmd,
@@ -81,6 +82,7 @@ func main() {
 		remoteExecCmd,
 		remoteSessionCmd,
 		initWorkspaceCmd,
+		removeWorkspaceCmd,
 	)
 
 	if err := rootCmd.Execute(); err != nil {

@@ -2,10 +2,14 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/user/rt/internal/attachments"
+	"github.com/user/rt/internal/comments"
 	"github.com/user/rt/internal/audit"
 	"github.com/user/rt/internal/checklist"
 	"github.com/user/rt/internal/credentials"
@@ -15,6 +19,7 @@ import (
 	"github.com/user/rt/internal/report"
 	"github.com/user/rt/internal/scope"
 	"github.com/user/rt/internal/session"
+	"github.com/user/rt/internal/templates"
 )
 
 func jsonResp(w http.ResponseWriter, data interface{}) {
@@ -93,7 +98,7 @@ func (s *Server) handleCreateFinding(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleFindingAction(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) < 5 {
+	if len(parts) < 4 {
 		jsonErr(w, "invalid path", 400)
 		return
 	}
@@ -102,8 +107,62 @@ func (s *Server) handleFindingAction(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, "invalid finding ID", 400)
 		return
 	}
-	action := parts[4]
 	op := operatorFromCtx(r)
+
+	// GET /api/findings/:id — single finding detail (no sub-action)
+	if r.Method == "GET" && len(parts) < 5 {
+		f, err := findings.Get(s.DB, id)
+		if err != nil {
+			jsonErr(w, err.Error(), 404)
+			return
+		}
+		jsonResp(w, f)
+		return
+	}
+
+	// DELETE /api/findings/:id (only when no sub-action)
+	if r.Method == "DELETE" && len(parts) < 5 {
+		if err := findings.Delete(s.DB, id, op); err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		s.Hub.Broadcast(map[string]interface{}{"type": "finding.delete", "id": id, "operator": op})
+		jsonResp(w, map[string]string{"status": "ok"})
+		return
+	}
+
+	// PUT /api/findings/:id — update finding
+	if r.Method == "PUT" {
+		var req struct {
+			Title       string   `json:"title"`
+			Description string   `json:"description"`
+			Priority    string   `json:"priority"`
+			Mitre       []string `json:"mitre"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonErr(w, "invalid JSON", 400)
+			return
+		}
+		if err := findings.Update(s.DB, id, req.Title, req.Description, req.Priority, req.Mitre, op); err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		s.Hub.Broadcast(map[string]interface{}{"type": "finding.update", "id": id, "operator": op})
+		jsonResp(w, map[string]string{"status": "ok"})
+		return
+	}
+
+	// POST /api/findings/:id/:action
+	if len(parts) < 5 {
+		jsonErr(w, "action required", 400)
+		return
+	}
+	action := parts[4]
+
+	if action == "comments" {
+		s.handleComments(w, r)
+		return
+	}
 
 	switch action {
 	case "verify":
@@ -119,6 +178,7 @@ func (s *Server) handleFindingAction(w http.ResponseWriter, r *http.Request) {
 			jsonErr(w, err.Error(), 500)
 			return
 		}
+		s.Hub.Broadcast(map[string]interface{}{"type": "finding.verify", "id": id, "status": req.Status, "operator": op})
 		jsonResp(w, map[string]string{"status": "ok"})
 
 	case "recommend":
@@ -133,6 +193,7 @@ func (s *Server) handleFindingAction(w http.ResponseWriter, r *http.Request) {
 			jsonErr(w, err.Error(), 500)
 			return
 		}
+		s.Hub.Broadcast(map[string]interface{}{"type": "finding.recommend", "id": id, "operator": op})
 		jsonResp(w, map[string]string{"status": "ok"})
 
 	default:
@@ -397,6 +458,62 @@ func (s *Server) handleSubmitCred(w http.ResponseWriter, r *http.Request) {
 	jsonResp(w, map[string]string{"status": "stored"})
 }
 
+func (s *Server) handleEvidenceDetail(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 4 {
+		jsonErr(w, "invalid path", 400)
+		return
+	}
+	id, err := strconv.ParseInt(parts[3], 10, 64)
+	if err != nil {
+		jsonErr(w, "invalid evidence ID", 400)
+		return
+	}
+	ev, err := evidence.Get(s.DB, id)
+	if err != nil {
+		jsonErr(w, err.Error(), 404)
+		return
+	}
+	jsonResp(w, ev)
+}
+
+func (s *Server) handleCredAction(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 4 {
+		jsonErr(w, "invalid path", 400)
+		return
+	}
+	id, err := strconv.ParseInt(parts[3], 10, 64)
+	if err != nil {
+		jsonErr(w, "invalid credential ID", 400)
+		return
+	}
+	op := operatorFromCtx(r)
+
+	if r.Method == "DELETE" {
+		if err := credentials.Delete(s.DB, s.EngID, id, op); err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		s.Hub.Broadcast(map[string]interface{}{"type": "cred.delete", "id": id, "operator": op})
+		jsonResp(w, map[string]string{"status": "ok"})
+		return
+	}
+
+	// GET /api/creds/:id/reveal
+	if r.Method == "GET" && len(parts) >= 5 && parts[4] == "reveal" {
+		secret, err := credentials.Reveal(s.DB, s.EngID, id, op)
+		if err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		jsonResp(w, map[string]string{"secret": secret})
+		return
+	}
+
+	jsonErr(w, "method not allowed", 405)
+}
+
 func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 	limitStr := r.URL.Query().Get("limit")
 	limit := 50
@@ -580,6 +697,254 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write([]byte(report.RenderHTML(data, opts)))
 	}
+}
+
+func (s *Server) handleAttachments(w http.ResponseWriter, r *http.Request) {
+	evIDStr := r.URL.Query().Get("evidence_id")
+	findingIDStr := r.URL.Query().Get("finding_id")
+
+	if findingIDStr != "" {
+		fid, err := strconv.ParseInt(findingIDStr, 10, 64)
+		if err != nil {
+			jsonErr(w, "invalid finding_id", 400)
+			return
+		}
+		list, err := attachments.ListByFinding(s.DB, fid)
+		if err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		jsonResp(w, list)
+		return
+	}
+
+	if evIDStr != "" {
+		eid, err := strconv.ParseInt(evIDStr, 10, 64)
+		if err != nil {
+			jsonErr(w, "invalid evidence_id", 400)
+			return
+		}
+		list, err := attachments.ListByEvidence(s.DB, eid)
+		if err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		jsonResp(w, list)
+		return
+	}
+
+	list, err := attachments.ListByEngagement(s.DB, s.EngID)
+	if err != nil {
+		jsonErr(w, err.Error(), 500)
+		return
+	}
+	jsonResp(w, list)
+}
+
+func (s *Server) handleAttachmentContent(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 4 {
+		jsonErr(w, "invalid path", 400)
+		return
+	}
+	id, err := strconv.ParseInt(parts[3], 10, 64)
+	if err != nil {
+		jsonErr(w, "invalid attachment ID", 400)
+		return
+	}
+
+	content, filename, filetype, err := attachments.GetContent(s.DB, id)
+	if err != nil {
+		jsonErr(w, err.Error(), 404)
+		return
+	}
+
+	contentType := "application/octet-stream"
+	switch filetype {
+	case "screenshot":
+		ext := strings.ToLower(filepath.Ext(filename))
+		switch ext {
+		case ".png":
+			contentType = "image/png"
+		case ".jpg", ".jpeg":
+			contentType = "image/jpeg"
+		case ".gif":
+			contentType = "image/gif"
+		}
+	case "pdf":
+		contentType = "application/pdf"
+	case "txt", "log", "config":
+		contentType = "text/plain; charset=utf-8"
+	case "json":
+		contentType = "application/json"
+	case "csv":
+		contentType = "text/csv"
+	}
+
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, filename))
+	w.Header().Set("Content-Length", strconv.Itoa(len(content)))
+	w.Write(content)
+}
+
+func (s *Server) handleComments(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 5 {
+		jsonErr(w, "invalid path — expected /api/findings/:id/comments", 400)
+		return
+	}
+	findingID, err := strconv.ParseInt(parts[3], 10, 64)
+	if err != nil {
+		jsonErr(w, "invalid finding ID", 400)
+		return
+	}
+
+	comments.EnsureTable(s.DB)
+
+	// DELETE /api/findings/:id/comments/:commentID
+	if r.Method == "DELETE" && len(parts) >= 6 {
+		commentID, err := strconv.ParseInt(parts[5], 10, 64)
+		if err != nil {
+			jsonErr(w, "invalid comment ID", 400)
+			return
+		}
+		op := operatorFromCtx(r)
+		if err := comments.Delete(s.DB, commentID, op); err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		jsonResp(w, map[string]string{"status": "ok"})
+		return
+	}
+
+	if r.Method == "POST" {
+		var req struct {
+			Content string `json:"content"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonErr(w, "invalid JSON", 400)
+			return
+		}
+		if req.Content == "" {
+			jsonErr(w, "content required", 400)
+			return
+		}
+		op := operatorFromCtx(r)
+		c, err := comments.Add(s.DB, findingID, op, req.Content)
+		if err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		s.Hub.Broadcast(map[string]interface{}{"type": "comment.new", "finding_id": findingID, "comment": c})
+		w.WriteHeader(201)
+		jsonResp(w, c)
+		return
+	}
+
+	list, err := comments.ListByFinding(s.DB, findingID)
+	if err != nil {
+		jsonErr(w, err.Error(), 500)
+		return
+	}
+	if list == nil {
+		list = []comments.Comment{}
+	}
+	jsonResp(w, list)
+}
+
+func (s *Server) handlePresence(w http.ResponseWriter, r *http.Request) {
+	jsonResp(w, map[string]interface{}{"online": s.Hub.OnlineCount()})
+}
+
+func (s *Server) handleTemplates(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		var req struct {
+			Name    string `json:"name"`
+			Format  string `json:"format"`
+			Content string `json:"content"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonErr(w, "invalid JSON", 400)
+			return
+		}
+		if req.Name == "" {
+			jsonErr(w, "name required", 400)
+			return
+		}
+		if req.Format == "" {
+			req.Format = "markdown"
+		}
+		op := operatorFromCtx(r)
+		t, err := templates.Create(s.DB, s.EngID, req.Name, req.Format, req.Content, false, op)
+		if err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		w.WriteHeader(201)
+		jsonResp(w, t)
+		return
+	}
+
+	templates.EnsureTable(s.DB)
+	templates.SeedDefaults(s.DB, s.EngID, "system")
+	list, err := templates.List(s.DB, s.EngID)
+	if err != nil {
+		jsonErr(w, err.Error(), 500)
+		return
+	}
+	jsonResp(w, list)
+}
+
+func (s *Server) handleTemplateAction(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 4 {
+		jsonErr(w, "invalid path", 400)
+		return
+	}
+	id, err := strconv.ParseInt(parts[3], 10, 64)
+	if err != nil {
+		jsonErr(w, "invalid template ID", 400)
+		return
+	}
+	op := operatorFromCtx(r)
+
+	if r.Method == "GET" {
+		t, err := templates.Get(s.DB, id)
+		if err != nil {
+			jsonErr(w, err.Error(), 404)
+			return
+		}
+		jsonResp(w, t)
+		return
+	}
+
+	if r.Method == "PUT" {
+		var req struct {
+			Name    string `json:"name"`
+			Content string `json:"content"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonErr(w, "invalid JSON", 400)
+			return
+		}
+		if err := templates.Update(s.DB, id, req.Name, req.Content, op); err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		jsonResp(w, map[string]string{"status": "ok"})
+		return
+	}
+
+	if r.Method == "DELETE" {
+		if err := templates.Delete(s.DB, id, op); err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		jsonResp(w, map[string]string{"status": "ok"})
+		return
+	}
+
+	jsonErr(w, "method not allowed", 405)
 }
 
 func operatorFromCtx(r *http.Request) string {

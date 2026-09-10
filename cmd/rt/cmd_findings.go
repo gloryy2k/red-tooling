@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/user/rt/internal/attachments"
 	"github.com/user/rt/internal/findings"
 )
 
@@ -135,7 +137,33 @@ var verifyFindingCmd = &cobra.Command{
 		}
 
 		note, _ := cmd.Flags().GetString("note")
+		screenshot, _ := cmd.Flags().GetString("screenshot")
+		noScreenshot, _ := cmd.Flags().GetBool("no-screenshot")
 		operator := getOperator()
+
+		if status == "confirmed" && screenshot == "" && !noScreenshot {
+			fmt.Println("  WARNING: No screenshot provided for confirmed finding.")
+			fmt.Println("  Use --screenshot <file> for visual evidence, or --no-screenshot if not applicable.")
+		}
+
+		if screenshot != "" {
+			if _, err := os.Stat(screenshot); os.IsNotExist(err) {
+				return fmt.Errorf("screenshot file not found: %s", screenshot)
+			}
+			f, err := findings.Get(database, id)
+			if err != nil {
+				return err
+			}
+			if len(f.EvidenceIDs) > 0 {
+				_, err = attachments.Store(database, f.EvidenceIDs[0], screenshot, fmt.Sprintf("Verification screenshot for finding #%d", id), operator)
+				if err != nil {
+					return fmt.Errorf("attach screenshot: %w", err)
+				}
+				fmt.Printf("  Screenshot attached to evidence #%d\n", f.EvidenceIDs[0])
+			} else {
+				fmt.Println("  WARNING: No linked evidence — screenshot not attached. Use 'rt attach' manually.")
+			}
+		}
 
 		if err := findings.Verify(database, id, status, operator, note); err != nil {
 			return err
@@ -212,6 +240,8 @@ func init() {
 	findingCmd.Flags().String("mitre", "", "Comma-separated MITRE ATT&CK IDs")
 
 	verifyFindingCmd.Flags().String("note", "", "Verification note")
+	verifyFindingCmd.Flags().String("screenshot", "", "Screenshot file to attach as verification evidence")
+	verifyFindingCmd.Flags().Bool("no-screenshot", false, "Skip screenshot requirement for non-visual findings")
 }
 
 func priorityColor(p string) string {

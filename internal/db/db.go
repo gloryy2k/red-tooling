@@ -392,6 +392,29 @@ CREATE TABLE IF NOT EXISTS audit_log (
     request_hash TEXT
 );
 
+CREATE TABLE IF NOT EXISTS finding_comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    finding_id INTEGER NOT NULL,
+    operator TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (finding_id) REFERENCES findings(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_comments_finding ON finding_comments(finding_id);
+
+CREATE TABLE IF NOT EXISTS report_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    engagement_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    format TEXT NOT NULL DEFAULT 'markdown',
+    content TEXT NOT NULL DEFAULT '',
+    is_default INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_report_templates_engagement ON report_templates(engagement_id);
 CREATE INDEX IF NOT EXISTS idx_evidence_session ON evidence(session_id);
 CREATE INDEX IF NOT EXISTS idx_evidence_action ON evidence(action);
 CREATE INDEX IF NOT EXISTS idx_evidence_tags ON evidence(tags);

@@ -19,8 +19,9 @@ type WSHub struct {
 }
 
 type WSConn struct {
-	conn net.Conn
-	mu   sync.Mutex
+	conn     net.Conn
+	mu       sync.Mutex
+	Operator string
 }
 
 func NewWSHub() *WSHub {
@@ -61,6 +62,36 @@ func (h *WSHub) removeClient(c *WSConn) {
 	h.mu.Lock()
 	delete(h.clients, c)
 	h.mu.Unlock()
+	if c.Operator != "" {
+		h.BroadcastPresence()
+	}
+}
+
+func (h *WSHub) SetOperator(c *WSConn, op string) {
+	c.Operator = op
+	h.BroadcastPresence()
+}
+
+func (h *WSHub) BroadcastPresence() {
+	h.mu.RLock()
+	ops := make(map[string]bool)
+	for c := range h.clients {
+		if c.Operator != "" {
+			ops[c.Operator] = true
+		}
+	}
+	h.mu.RUnlock()
+	var list []string
+	for op := range ops {
+		list = append(list, op)
+	}
+	h.Broadcast(map[string]interface{}{"type": "presence", "operators": list, "count": len(list)})
+}
+
+func (h *WSHub) OnlineCount() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.clients)
 }
 
 func (c *WSConn) WriteMessage(data []byte) {
@@ -177,7 +208,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	welcome, _ := json.Marshal(map[string]string{"type": "connected", "engagement": s.EngName})
 	wsConn.WriteMessage(welcome)
 
-	// Read loop (keep connection alive, handle pings)
+	// Read loop — handle incoming messages for presence
 	go func() {
 		defer func() {
 			s.Hub.removeClient(wsConn)
@@ -186,9 +217,15 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		reader := bufio.NewReader(conn)
 		_ = reader
 		for {
-			_, err := wsConn.ReadMessage()
+			msg, err := wsConn.ReadMessage()
 			if err != nil {
 				return
+			}
+			var incoming map[string]string
+			if json.Unmarshal(msg, &incoming) == nil {
+				if incoming["type"] == "presence" && incoming["operator"] != "" {
+					s.Hub.SetOperator(wsConn, incoming["operator"])
+				}
 			}
 		}
 	}()

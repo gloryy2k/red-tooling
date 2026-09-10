@@ -127,6 +127,22 @@ func Timeline(db *sql.DB, engID string, limit int) ([]Evidence, error) {
 	return list, rows.Err()
 }
 
+// LatestID returns the most recent evidence ID for an engagement.
+func LatestID(db *sql.DB, engName string) (int64, error) {
+	engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+	var id int64
+	err := db.QueryRow(
+		`SELECT e.id FROM evidence e
+		 JOIN sessions s ON e.session_id = s.id
+		 WHERE s.engagement_id = ? AND e.is_deleted = 0
+		 ORDER BY e.timestamp DESC LIMIT 1`, engID,
+	).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("no evidence found")
+	}
+	return id, nil
+}
+
 // VerifyChain checks the hash chain integrity for all sessions in an engagement.
 func VerifyChain(db *sql.DB, engID string) ([]ChainResult, error) {
 	rows, err := db.Query(

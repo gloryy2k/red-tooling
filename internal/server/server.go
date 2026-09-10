@@ -63,8 +63,15 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/audit", s.withAuth("audit", s.handleAudit))
 	mux.HandleFunc("/api/operators", s.withAuth("operators", s.handleOperators))
 	mux.HandleFunc("/api/report", s.withAuth("report", s.handleReport))
-	// API routes — write
+	// API routes — write / detail
 	mux.HandleFunc("/api/findings/", s.withAuth("findings", s.handleFindingAction))
+	mux.HandleFunc("/api/presence", s.withAuth("overview", s.handlePresence))
+	mux.HandleFunc("/api/evidence/", s.withAuth("evidence", s.handleEvidenceDetail))
+	mux.HandleFunc("/api/creds/", s.withAuth("creds", s.handleCredAction))
+	mux.HandleFunc("/api/attachments", s.withAuth("evidence", s.handleAttachments))
+	mux.HandleFunc("/api/attachments/", s.withAuth("evidence", s.handleAttachmentContent))
+	mux.HandleFunc("/api/templates", s.withAuth("report", s.handleTemplates))
+	mux.HandleFunc("/api/templates/", s.withAuth("report", s.handleTemplateAction))
 	mux.HandleFunc("/api/scope", s.withAuth("scope", s.handleScope))
 	mux.HandleFunc("/api/scope/tested", s.withAuth("scope", s.handleScopeTested))
 	mux.HandleFunc("/api/checklist", s.withAuth("checklist", s.handleChecklist))

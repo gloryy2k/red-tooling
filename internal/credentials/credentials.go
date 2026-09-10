@@ -137,6 +137,16 @@ type CredentialWithSecret struct {
 	FoundAt   string `json:"found_at"`
 }
 
+// Delete removes a credential by ID.
+func Delete(db *sql.DB, engID string, credID int64, operator string) error {
+	_, err := db.Exec(`DELETE FROM credentials WHERE id = ? AND engagement_id = ?`, credID, engID)
+	if err != nil {
+		return fmt.Errorf("delete credential: %w", err)
+	}
+	audit.Log(db, operator, "cred.delete", "credential", fmt.Sprintf("%d", credID), nil)
+	return nil
+}
+
 // ExportCSV returns credentials as CSV. Audit-logged.
 func ExportCSV(db *sql.DB, engID, operator string) (string, error) {
 	creds, err := RevealAll(db, engID, operator)

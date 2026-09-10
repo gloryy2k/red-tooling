@@ -4,31 +4,32 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
 
+const rtBeginMarker = "<!-- RT:BEGIN -->"
+const rtEndMarker = "<!-- RT:END -->"
+
 var initWorkspaceCmd = &cobra.Command{
 	Use:   "init-workspace",
-	Short: "Generate AI agent context (CLAUDE.md + skills) in current directory",
-	Long: `Creates CLAUDE.md and .claude/commands/ skills so any AI coding agent
-(Claude Code, Cursor, etc.) understands how to use RT for pentesting.
+	Short: "Add RT agent context to current directory (appends to CLAUDE.md + creates skills)",
+	Long: `Appends RT agent context to CLAUDE.md (between RT:BEGIN/RT:END markers) and
+creates .claude/commands/ skills. If CLAUDE.md already has RT markers, they are
+replaced. If no CLAUDE.md exists, one is created. Existing content outside
+the markers is preserved.
 
 Run this in your pentest working directory before starting a session.
-The agent will auto-discover RT capabilities and follow the correct workflow.`,
+Use 'rt remove-workspace' to strip RT content from the workspace.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dir, _ := os.Getwd()
-		force, _ := cmd.Flags().GetBool("force")
 
 		claudeMD := filepath.Join(dir, "CLAUDE.md")
-		if _, err := os.Stat(claudeMD); err == nil && !force {
-			return fmt.Errorf("CLAUDE.md already exists (use --force to overwrite)")
+		if err := appendOrReplaceRT(claudeMD, agentClaudeMD); err != nil {
+			return fmt.Errorf("update CLAUDE.md: %w", err)
 		}
-
-		if err := os.WriteFile(claudeMD, []byte(agentClaudeMD), 0644); err != nil {
-			return fmt.Errorf("write CLAUDE.md: %w", err)
-		}
-		fmt.Printf("  Created: %s\n", claudeMD)
+		fmt.Printf("  Updated: %s (RT section appended)\n", claudeMD)
 
 		skillsDir := filepath.Join(dir, ".claude", "commands")
 		if err := os.MkdirAll(skillsDir, 0755); err != nil {
@@ -42,10 +43,6 @@ The agent will auto-discover RT capabilities and follow the correct workflow.`,
 
 		for name, content := range skills {
 			p := filepath.Join(skillsDir, name)
-			if _, err := os.Stat(p); err == nil && !force {
-				fmt.Printf("  Skipped: %s (exists)\n", p)
-				continue
-			}
 			if err := os.WriteFile(p, []byte(content), 0644); err != nil {
 				return fmt.Errorf("write %s: %w", name, err)
 			}
@@ -54,107 +51,160 @@ The agent will auto-discover RT capabilities and follow the correct workflow.`,
 
 		fmt.Println()
 		fmt.Println("  Workspace ready. An AI agent in this directory will:")
-		fmt.Println("    1. Read CLAUDE.md → understand RT capabilities")
-		fmt.Println("    2. Run ./rt --help → discover all commands")
-		fmt.Println("    3. Use /pentest <target> → full attack workflow")
-		fmt.Println("    4. Use /report → generate final report")
+		fmt.Println("    1. Read CLAUDE.md -> understand RT discipline rules")
+		fmt.Println("    2. Use /pentest <target> -> start engagement with evidence capture")
+		fmt.Println("    3. Use /report -> verify findings + generate report")
 		fmt.Println()
-		fmt.Println("  The agent only needs a target. Everything else is automatic.")
+		fmt.Println("  Use 'rt remove-workspace' to strip RT content.")
 
 		return nil
 	},
 }
 
-func init() {
-	initWorkspaceCmd.Flags().Bool("force", false, "Overwrite existing files")
+var removeWorkspaceCmd = &cobra.Command{
+	Use:   "remove-workspace",
+	Short: "Remove RT agent context from current directory",
+	Long:  `Strips the RT:BEGIN..RT:END section from CLAUDE.md and removes RT skill files.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dir, _ := os.Getwd()
+
+		claudeMD := filepath.Join(dir, "CLAUDE.md")
+		if err := stripRTSection(claudeMD); err != nil {
+			fmt.Printf("  CLAUDE.md: %s\n", err)
+		} else {
+			fmt.Printf("  Cleaned: %s (RT section removed)\n", claudeMD)
+		}
+
+		skillsDir := filepath.Join(dir, ".claude", "commands")
+		for _, name := range []string{"pentest.md", "report.md"} {
+			p := filepath.Join(skillsDir, name)
+			if err := os.Remove(p); err == nil {
+				fmt.Printf("  Removed: %s\n", p)
+			}
+		}
+
+		fmt.Println("  RT workspace content removed.")
+		return nil
+	},
 }
 
-const agentClaudeMD = `# Pentest Workstation — RT Evidence Logger
+func appendOrReplaceRT(path, rtContent string) error {
+	block := "\n" + rtBeginMarker + "\n" + rtContent + "\n" + rtEndMarker + "\n"
 
-This folder contains ` + "`rt`" + ` (or ` + "`rt.exe`" + ` on Windows) — a red team evidence capture tool.
-You are the pentester. The tool is your evidence pipeline.
+	existing, err := os.ReadFile(path)
+	if err != nil {
+		return os.WriteFile(path, []byte(strings.TrimLeft(block, "\n")), 0644)
+	}
 
-## MANDATORY: Learn the tool first
+	content := string(existing)
+	beginIdx := strings.Index(content, rtBeginMarker)
+	endIdx := strings.Index(content, rtEndMarker)
 
-Before ANY pentest activity, run:
-` + "```bash" + `
-./rt --help
-` + "```" + `
+	if beginIdx >= 0 && endIdx >= 0 && endIdx > beginIdx {
+		content = content[:beginIdx] + strings.TrimLeft(block, "\n") + content[endIdx+len(rtEndMarker):]
+		content = strings.TrimRight(content, "\n") + "\n"
+		return os.WriteFile(path, []byte(content), 0644)
+	}
 
-Read every subcommand. Then check key ones you'll use most:
-` + "```bash" + `
-./rt exec --help
-./rt finding --help
-./rt cred --help
-./rt scope --help
-./rt serve --help
-./rt report --help
-` + "```" + `
+	if !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
+	content += block
+	return os.WriteFile(path, []byte(content), 0644)
+}
 
-## The One Rule
+func stripRTSection(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("not found")
+	}
+	content := string(data)
+	beginIdx := strings.Index(content, rtBeginMarker)
+	endIdx := strings.Index(content, rtEndMarker)
+	if beginIdx < 0 || endIdx < 0 {
+		return fmt.Errorf("no RT section found")
+	}
 
-**Every command you execute against a target MUST go through ` + "`rt exec`" + `.**
+	before := strings.TrimRight(content[:beginIdx], "\n")
+	after := strings.TrimLeft(content[endIdx+len(rtEndMarker):], "\n")
+	result := before
+	if after != "" {
+		result += "\n\n" + after
+	}
+	result = strings.TrimSpace(result) + "\n"
+	if strings.TrimSpace(result) == "" {
+		return os.Remove(path)
+	}
+	return os.WriteFile(path, []byte(result), 0644)
+}
 
-` + "```bash" + `
-# WRONG — evidence lost
-curl http://target/api/users
+const agentClaudeMD = `# RT — Red Team Evidence Discipline
 
-# RIGHT — captured, auto-flagged, hash-chained
-./rt exec curl http://target/api/users
-` + "```" + `
+You have ` + "`rt`" + ` (or ` + "`rt.exe`" + `) available — a red team evidence capture tool.
+These rules ensure tamper-proof evidence collection during pentests.
 
-RT auto-detects credentials, admin access, RCE indicators, SQL injection, ADCS,
-kerberoast output and more. It builds a tamper-proof SHA-256 hash chain of everything.
+## Rules
 
-## Passphrase (non-interactive)
+1. **Every command against a target MUST go through ` + "`rt exec`" + `.**
+   ` + "```" + `
+   # WRONG: evidence lost
+   curl http://target/api/users
 
-` + "```bash" + `
-echo -e "rtpass\nrtpass" | ./rt new "NAME" --client "Client"  # create (2x)
-echo "rtpass" | ./rt unlock                                    # unlock (1x)
-# Everything else works without passphrase once unlocked
-` + "```" + `
+   # RIGHT: captured, auto-flagged, hash-chained
+   ./rt exec curl http://target/api/users
+   ` + "```" + `
 
-## Record findings immediately when discovered
+2. **Record findings immediately.** When you discover a vulnerability:
+   ` + "`./rt finding \"Title\" --priority <level> --mitre <id>`" + `
 
-| Discovery | Command |
-|-----------|---------|
-| Vulnerability | ` + "`./rt finding \"Title\" --priority critical --mitre T1190`" + ` |
-| Credentials | ` + "`./rt cred <user> <secret> --host <ip>`" + ` |
-| Achievement | ` + "`./rt milestone \"Got admin shell\"`" + ` |
-| Observation | ` + "`./rt note \"Interesting detail\"`" + ` |
-| Host tested | ` + "`./rt scope-tested <host>`" + ` |
-| Checklist done | ` + "`./rt check <item-id>`" + ` |
+3. **Record credentials immediately.** When you find creds:
+   ` + "`./rt cred <user> <secret> --host <ip>`" + `
 
-## Dashboard
+4. **Mark milestones.** For major achievements (shell, admin, flag):
+   ` + "`./rt milestone \"Description\"`" + `
 
-` + "`./rt serve --listen localhost:7777`" + ` starts a live web dashboard with
-evidence feed, findings, credentials, scope progress, and checklist.
+5. **Track scope.** Mark hosts tested: ` + "`./rt scope-tested <host>`" + `
 
-## Workflow
+6. **Verify findings.** Before reporting, verify each finding:
+   ` + "`./rt verify-finding <id> confirmed --screenshot <file>`" + ` (visual evidence)
+   ` + "`./rt verify-finding <id> confirmed --no-screenshot`" + ` (non-visual)
 
-1. ` + "`/pentest <target>`" + ` — full automated pentest workflow
-2. ` + "`/report`" + ` — verify findings + generate report
+7. **Add recommendations.** Every finding needs remediation guidance:
+   ` + "`./rt recommend <id> \"Specific fix\"`" + `
+
+## Quick Reference
+
+Run ` + "`./rt --help`" + ` to see all available commands.
+
+| Action | Command |
+|--------|---------|
+| Execute + capture | ` + "`./rt exec <cmd>`" + ` |
+| Create finding | ` + "`./rt finding \"Title\" --priority high --mitre T1190`" + ` |
+| Store credential | ` + "`./rt cred <user> <secret> --host <ip>`" + ` |
+| Mark milestone | ` + "`./rt milestone \"Got admin\"`" + ` |
+| Attach screenshot | ` + "`./rt screenshot <file> [evidence-id]`" + ` |
+| Verify finding | ` + "`./rt verify-finding <id> confirmed`" + ` |
+| Add recommendation | ` + "`./rt recommend <id> \"Fix\"`" + ` |
+| Dashboard | ` + "`./rt serve --listen localhost:7777`" + ` |
+| Generate report | ` + "`./rt report --html -o report.html`" + ` |
 
 ## What NOT to do
 
-- NEVER run commands without ` + "`rt exec`" + ` — evidence is lost
-- NEVER forget ` + "`rt cred`" + ` when you find credentials
-- NEVER forget ` + "`rt finding`" + ` when you discover a vulnerability
-- NEVER forget ` + "`rt milestone`" + ` for major achievements (shell, admin, flag)
-- NEVER leave findings unverified — always ` + "`rt verify-finding`" + `
-- NEVER generate report without recommendations — always ` + "`rt recommend`" + `
-`
+- NEVER run target commands outside ` + "`rt exec`" + `
+- NEVER leave findings unverified or without recommendations
+- NEVER skip ` + "`rt cred`" + ` when credentials are found
+- NEVER skip ` + "`rt milestone`" + ` for major achievements`
 
 const skillPentest = `# Pentest Target
 
-You are a penetration tester. The user has given you a target.
-Set up RT, attack the target, capture ALL evidence through RT, and produce a report.
+You are a penetration tester. Use RT to capture ALL evidence.
 
 ## Target
 $ARGUMENTS
 
-## Phase 0: Learn the tool (MANDATORY — do not skip)
+## Mandatory Setup
 
+Before ANY pentesting activity, learn the tool:
 ` + "```bash" + `
 ./rt --help
 ./rt exec --help
@@ -162,79 +212,61 @@ $ARGUMENTS
 ./rt cred --help
 ` + "```" + `
 
-Read and understand every subcommand before proceeding.
-
-## Phase 1: Setup
-
+Then set up the engagement:
 ` + "```bash" + `
 export RT_HOME=./.rt
-echo -e "rtpass\nrtpass" | ./rt new "<derive-name-from-target>" --client "Pentest"
+echo -e "rtpass\nrtpass" | ./rt new "<name>" --client "Pentest"
 echo "rtpass" | ./rt unlock
-./rt scope <target-host-or-ip>
+./rt scope <target>
 ./rt checklist-load ptes
-./rt serve --listen localhost:7777 &
+./rt start
 ` + "```" + `
 
-Tell user: dashboard at http://localhost:7777
+## Rules During Testing
 
-## Phase 2: Recon (ALL through rt exec)
+- **ALL** commands against the target go through ` + "`./rt exec`" + `
+- **Immediately** record findings: ` + "`./rt finding \"Title\" --priority <sev> --mitre <id>`" + `
+- **Immediately** record credentials: ` + "`./rt cred <user> <secret> --host <ip>`" + `
+- **Immediately** mark milestones: ` + "`./rt milestone \"What happened\"`" + `
+- **Attach screenshots** for visual evidence: ` + "`./rt screenshot <file>`" + `
+- **Track scope**: ` + "`./rt scope-tested <host>`" + ` after testing each host
+- **Check items**: ` + "`./rt check <id>`" + ` as you complete checklist phases
 
-` + "```bash" + `
-./rt exec curl -sI http://<target>
-./rt exec curl -s http://<target>/robots.txt
-./rt exec curl -s http://<target>/.git/HEAD
-./rt exec curl -s http://<target>/.env
-./rt exec curl -s http://<target>/
-` + "```" + `
+## Strategy
 
-Analyze responses. Follow interesting paths. For each discovery:
-- Vulnerability → ` + "`./rt finding \"Title\" --priority <level> --mitre <id>`" + `
-- Credentials → ` + "`./rt cred <user> <secret> --host <target>`" + `
-- Key discovery → ` + "`./rt milestone \"Description\"`" + `
+You decide the attack strategy. RT is your evidence pipeline, not your playbook.
+Think like a pentester: enumerate, analyze, exploit, escalate, document.
 
-After recon: ` + "`./rt scope-tested <target>`" + ` + check checklist items.
+## Wrap Up
 
-## Phase 3: Exploit (ALL through rt exec)
-
-Based on recon, exploit vulnerabilities. Common patterns:
-- Auth bypass (default creds, JWT manipulation, session tokens)
-- Injection (SQLi, SSTI, command injection, XSS)
-- Information disclosure (.git, .env, config, source code)
-- Privilege escalation (token forge, IDOR, role manipulation)
-- File inclusion (LFI/RFI)
-
-For EACH successful exploit:
-1. ` + "`./rt finding \"Title\" --priority critical --mitre <id>`" + `
-2. ` + "`./rt cred`" + ` if credentials found
-3. ` + "`./rt milestone`" + ` for major achievements
-
-## Phase 4: Wrap up
-
+When done testing:
 ` + "```bash" + `
 ./rt standup
 ./rt verify-chain
+./rt stop
 ` + "```" + `
 
-Present summary to user. Suggest running /report for final output.
+Present summary to user. Suggest ` + "`/report`" + ` for final output.
 `
 
 const skillReport = `# Generate Pentest Report
 
 Verify all findings, add recommendations, and generate the final report.
 
-## Instructions
+## Steps
 
-1. List all findings:
+1. Review all findings:
 ` + "```bash" + `
 ./rt findings
 ` + "```" + `
 
 2. For each unverified finding, verify it:
 ` + "```bash" + `
-./rt verify-finding <id> confirmed --note "How it was verified"
+./rt verify-finding <id> confirmed --note "Verification details"
+# Add --screenshot <file> for visual evidence on target
 ` + "```" + `
 
-3. For each finding without a recommendation, add one:
+3. For each finding without a recommendation:
 ` + "```bash" + `
 ./rt recommend <id> "Specific remediation steps"
 ` + "```" + `
@@ -253,5 +285,5 @@ Verify all findings, add recommendations, and generate the final report.
 ./rt export json -o evidence.json
 ` + "```" + `
 
-6. Present summary to user: findings count by severity, scope coverage, time spent.
+6. Present summary: findings by severity, scope coverage, time spent.
 `
