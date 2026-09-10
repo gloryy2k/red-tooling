@@ -309,6 +309,9 @@ tr.clickable:hover td{background:var(--surface-2)}
 /* === GRID LAYOUTS === */
 .grid-2{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:12px}
 @media(max-width:900px){.grid-2{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}}
+.tpl-grid{display:grid;grid-template-columns:180px 1fr;gap:8px;height:calc(100vh - 140px)}
+.tpl-edit-area{display:grid;grid-template-columns:1fr 1fr;gap:0;overflow:hidden;padding:0}
+@media(max-width:800px){.tpl-grid{grid-template-columns:140px 1fr}}
 </style></head><body>
 
 <div class="shell">
@@ -486,9 +489,9 @@ tr.clickable:hover td{background:var(--surface-2)}
 <!-- ===== TEMPLATES ===== -->
 <div id="pg-templates" class="page">
   <div class="page-hdr"><h2>Report Templates</h2><button class="btn sm primary" onclick="showNewTemplate()">+ New Template</button></div>
-  <div style="display:grid;grid-template-columns:240px 1fr;gap:12px;height:calc(100vh - 140px)">
-    <div class="card" style="overflow-y:auto;padding:8px" id="template-list"></div>
-    <div class="card" style="display:grid;grid-template-columns:1fr 1fr;gap:0;overflow:hidden;padding:0">
+  <div class="tpl-grid">
+    <div class="card" style="overflow-y:auto;padding:6px" id="template-list"></div>
+    <div class="card tpl-edit-area">
       <div style="display:flex;flex-direction:column;border-right:1px solid var(--border)">
         <div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Editor</div>
         <textarea id="template-editor" style="flex:1;resize:none;border:none;background:var(--bg);color:var(--text);padding:12px;font-family:'Fira Code',monospace;font-size:13px;line-height:1.6;outline:none" placeholder="Select a template to edit..." oninput="updateTemplatePreview()"></textarea>
