@@ -143,6 +143,22 @@ const agentClaudeMD = `# RT — Red Team Evidence Discipline
 You have ` + "`rt`" + ` (or ` + "`rt.exe`" + `) available — a red team evidence capture tool.
 These rules ensure tamper-proof evidence collection during pentests.
 
+## CRITICAL: Environment Setup
+
+**BEFORE any RT command**, you MUST set RT_HOME to the current project directory:
+` + "```bash" + `
+# Linux/Mac
+export RT_HOME="$(pwd)/.rt"
+
+# Windows PowerShell
+$env:RT_HOME = "$PWD\.rt"
+
+# Windows CMD
+set RT_HOME=%cd%\.rt
+` + "```" + `
+
+**Every shell command that calls ` + "`rt`" + ` must have RT_HOME set.** If you open a new shell or use a different tool, re-set it. Data goes to the WRONG location without this.
+
 ## Rules
 
 1. **Every command against a target MUST go through ` + "`rt exec`" + `.**
@@ -151,49 +167,78 @@ These rules ensure tamper-proof evidence collection during pentests.
    curl http://target/api/users
 
    # RIGHT: captured, auto-flagged, hash-chained
-   ./rt exec curl http://target/api/users
+   rt exec curl http://target/api/users
    ` + "```" + `
 
 2. **Record findings immediately.** When you discover a vulnerability:
-   ` + "`./rt finding \"Title\" --priority <level> --mitre <id>`" + `
+   ` + "`rt finding \"Title\" --priority <level> --mitre <id>`" + `
 
 3. **Record credentials immediately.** When you find creds:
-   ` + "`./rt cred <user> <secret> --host <ip>`" + `
+   ` + "`rt cred <user> <secret> --host <ip>`" + `
 
 4. **Mark milestones.** For major achievements (shell, admin, flag):
-   ` + "`./rt milestone \"Description\"`" + `
+   ` + "`rt milestone \"Description\"`" + `
 
-5. **Track scope.** Mark hosts tested: ` + "`./rt scope-tested <host>`" + `
+5. **Track scope.** Mark hosts tested: ` + "`rt scope-tested <host>`" + `
 
 6. **Verify findings.** Before reporting, verify each finding:
-   ` + "`./rt verify-finding <id> confirmed --screenshot <file>`" + ` (visual evidence)
-   ` + "`./rt verify-finding <id> confirmed --no-screenshot`" + ` (non-visual)
+   ` + "`rt verify-finding <id> confirmed --screenshot <file>`" + ` (visual evidence)
+   ` + "`rt verify-finding <id> confirmed --no-screenshot`" + ` (non-visual)
 
 7. **Add recommendations.** Every finding needs remediation guidance:
-   ` + "`./rt recommend <id> \"Specific fix\"`" + `
+   ` + "`rt recommend <id> \"Specific fix\"`" + `
+
+## Mandatory Workflow
+
+### Phase 1: Setup (BEFORE testing)
+` + "```bash" + `
+rt new "<engagement-name>" --client "<client>"
+rt unlock
+rt scope <target-hosts>
+rt checklist-load ptes
+rt start
+` + "```" + `
+
+### Phase 2: Testing
+Use ` + "`rt exec`" + ` for ALL target commands. Record findings/creds/milestones as you go.
+
+### Phase 3: Dashboard (start BEFORE wrap-up)
+` + "```bash" + `
+rt serve --listen localhost:7777 &
+# Open http://localhost:7777 in browser to verify all data
+` + "```" + `
+
+### Phase 4: Wrap Up (MANDATORY — do not skip)
+` + "```bash" + `
+rt standup                    # summary of what was done
+rt verify-chain               # verify evidence integrity
+rt report --html -o report.html  # generate report
+rt stop                       # stop session
+rt lock                       # re-encrypt database
+` + "```" + `
 
 ## Quick Reference
 
-Run ` + "`./rt --help`" + ` to see all available commands.
-
 | Action | Command |
 |--------|---------|
-| Execute + capture | ` + "`./rt exec <cmd>`" + ` |
-| Create finding | ` + "`./rt finding \"Title\" --priority high --mitre T1190`" + ` |
-| Store credential | ` + "`./rt cred <user> <secret> --host <ip>`" + ` |
-| Mark milestone | ` + "`./rt milestone \"Got admin\"`" + ` |
-| Attach screenshot | ` + "`./rt screenshot <file> [evidence-id]`" + ` |
-| Verify finding | ` + "`./rt verify-finding <id> confirmed`" + ` |
-| Add recommendation | ` + "`./rt recommend <id> \"Fix\"`" + ` |
-| Dashboard | ` + "`./rt serve --listen localhost:7777`" + ` |
-| Generate report | ` + "`./rt report --html -o report.html`" + ` |
+| Execute + capture | ` + "`rt exec <cmd>`" + ` |
+| Create finding | ` + "`rt finding \"Title\" --priority high --mitre T1190`" + ` |
+| Store credential | ` + "`rt cred <user> <secret> --host <ip>`" + ` |
+| Mark milestone | ` + "`rt milestone \"Got admin\"`" + ` |
+| Attach screenshot | ` + "`rt screenshot <file> [evidence-id]`" + ` |
+| Verify finding | ` + "`rt verify-finding <id> confirmed`" + ` |
+| Add recommendation | ` + "`rt recommend <id> \"Fix\"`" + ` |
+| Dashboard | ` + "`rt serve --listen localhost:7777`" + ` |
+| Generate report | ` + "`rt report --html -o report.html`" + ` |
 
 ## What NOT to do
 
+- NEVER run rt commands without setting RT_HOME first
 - NEVER run target commands outside ` + "`rt exec`" + `
 - NEVER leave findings unverified or without recommendations
 - NEVER skip ` + "`rt cred`" + ` when credentials are found
-- NEVER skip ` + "`rt milestone`" + ` for major achievements`
+- NEVER skip ` + "`rt milestone`" + ` for major achievements
+- NEVER skip the wrap-up phase (report + lock)`
 
 const skillPentest = `# Pentest Target
 
@@ -202,51 +247,66 @@ You are a penetration tester. Use RT to capture ALL evidence.
 ## Target
 $ARGUMENTS
 
-## Mandatory Setup
+## Step 1: Environment (DO THIS FIRST — every shell must have this)
 
-Before ANY pentesting activity, learn the tool:
 ` + "```bash" + `
-./rt --help
-./rt exec --help
-./rt finding --help
-./rt cred --help
+# Windows PowerShell:
+$env:RT_HOME = "$PWD\.rt"
+# Linux/Mac:
+export RT_HOME="$(pwd)/.rt"
 ` + "```" + `
 
-Then set up the engagement:
+**VERIFY**: Run ` + "`echo $env:RT_HOME`" + ` (PS) or ` + "`echo $RT_HOME`" + ` (bash) — it must point to THIS project directory, not ~/.rt.
+
+## Step 2: Create Engagement
+
 ` + "```bash" + `
-export RT_HOME=./.rt
-echo -e "rtpass\nrtpass" | ./rt new "<name>" --client "Pentest"
-echo "rtpass" | ./rt unlock
-./rt scope <target>
-./rt checklist-load ptes
-./rt start
+rt new "<name-from-target>" --client "Pentest"
+rt unlock
+rt scope <target-host>
+rt checklist-load ptes
+rt start
 ` + "```" + `
 
-## Rules During Testing
+## Step 3: Test (ALL commands through rt exec)
 
-- **ALL** commands against the target go through ` + "`./rt exec`" + `
-- **Immediately** record findings: ` + "`./rt finding \"Title\" --priority <sev> --mitre <id>`" + `
-- **Immediately** record credentials: ` + "`./rt cred <user> <secret> --host <ip>`" + `
-- **Immediately** mark milestones: ` + "`./rt milestone \"What happened\"`" + `
-- **Attach screenshots** for visual evidence: ` + "`./rt screenshot <file>`" + `
-- **Track scope**: ` + "`./rt scope-tested <host>`" + ` after testing each host
-- **Check items**: ` + "`./rt check <id>`" + ` as you complete checklist phases
-
-## Strategy
+- ` + "`rt exec <cmd>`" + ` — every target command
+- ` + "`rt finding \"Title\" --priority <sev> --mitre <id>`" + ` — every vuln found
+- ` + "`rt cred <user> <secret> --host <ip>`" + ` — every credential found
+- ` + "`rt milestone \"Description\"`" + ` — every major achievement
+- ` + "`rt scope-tested <host>`" + ` — after testing each host
+- ` + "`rt screenshot <file>`" + ` — for visual evidence
 
 You decide the attack strategy. RT is your evidence pipeline, not your playbook.
 Think like a pentester: enumerate, analyze, exploit, escalate, document.
 
-## Wrap Up
+## Step 4: Serve Dashboard (start in background BEFORE wrap-up)
 
-When done testing:
 ` + "```bash" + `
-./rt standup
-./rt verify-chain
-./rt stop
+# Start dashboard so user can see all data visually
+rt serve --listen localhost:7777
+# Tell user to open http://localhost:7777
 ` + "```" + `
 
-Present summary to user. Suggest ` + "`/report`" + ` for final output.
+## Step 5: Wrap Up (MANDATORY — do ALL of these)
+
+` + "```bash" + `
+# Verify + recommend all findings
+rt findings                          # list all
+rt verify-finding <id> confirmed     # verify each
+rt recommend <id> "Fix description"  # recommend each
+
+# Generate deliverables
+rt standup                           # progress summary
+rt verify-chain                      # integrity check
+rt report --html -o report.html      # HTML report
+
+# Clean up
+rt stop                              # stop session
+rt lock                              # re-encrypt database
+` + "```" + `
+
+Present summary to user. Dashboard should already be running for them to explore.
 `
 
 const skillReport = `# Generate Pentest Report
