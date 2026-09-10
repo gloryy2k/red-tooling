@@ -246,8 +246,9 @@ rt lock                       # re-encrypt database
 
 Before you say "done" or present a summary, confirm you did ALL of these:
 - [ ] ` + "`rt serve --listen localhost:7777`" + ` is running (dashboard accessible)
-- [ ] All findings have been verified (` + "`rt verify-finding`" + `)
+- [ ] All findings verified WITH screenshots (` + "`rt verify-finding <id> confirmed --screenshot <file>`" + `)
 - [ ] All findings have recommendations (` + "`rt recommend`" + `)
+- [ ] Checklist phases checked off (` + "`rt check <id>`" + ` for each completed phase)
 - [ ] ` + "`rt report --html -o report.html`" + ` was generated
 - [ ] ` + "`rt verify-chain`" + ` passed
 - [ ] Told the user to open http://localhost:7777 to see the dashboard`
@@ -288,9 +289,11 @@ rt start
 - ` + "`rt milestone \"Description\"`" + ` — every major achievement
 - ` + "`rt scope-tested <host>`" + ` — after testing each host
 - ` + "`rt screenshot <file>`" + ` — for visual evidence
+- ` + "`rt check <id>`" + ` — check off completed PTES phases as you go
 
 You decide the attack strategy. RT is your evidence pipeline, not your playbook.
 Think like a pentester: enumerate, analyze, exploit, escalate, document.
+**Mark checklist items as you complete each phase** (e.g. after recon: ` + "`rt check 5`" + ` through ` + "`rt check 9`" + `).
 
 ## Step 4: Serve Dashboard (start in background BEFORE wrap-up)
 
@@ -303,10 +306,12 @@ rt serve --listen localhost:7777
 ## Step 5: Wrap Up (MANDATORY — do ALL of these)
 
 ` + "```bash" + `
-# Verify + recommend all findings
+# Verify + recommend all findings (attach screenshots!)
 rt findings                          # list all
-rt verify-finding <id> confirmed     # verify each
+rt verify-finding <id> confirmed --screenshot <file>  # verify with screenshot
 rt recommend <id> "Fix description"  # recommend each
+rt checklist                         # review checklist
+rt check <id>                        # check off completed phases
 
 # Generate deliverables
 rt standup                           # progress summary
@@ -321,9 +326,11 @@ rt lock                              # re-encrypt database
 **STOP**: Before presenting results to the user, confirm:
 1. ` + "`rt serve --listen localhost:7777`" + ` is running
 2. You told the user to open http://localhost:7777
-3. All findings verified + recommendations added
-4. ` + "`rt report --html -o report.html`" + ` generated
-5. ` + "`rt verify-chain`" + ` passed
+3. All findings verified with screenshots (` + "`rt verify-finding <id> confirmed --screenshot <file>`" + `)
+4. All findings have recommendations (` + "`rt recommend <id> \"...\"`" + `)
+5. Checklist items checked off (` + "`rt check <id>`" + ` for completed phases)
+6. ` + "`rt report --html -o report.html`" + ` generated
+7. ` + "`rt verify-chain`" + ` passed
 
 If ANY of these is missing, do it NOW before continuing.
 `

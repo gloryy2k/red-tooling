@@ -3,7 +3,7 @@ package report
 import (
 	"bytes"
 	"fmt"
-	"html/template"
+	"text/template"
 	"os"
 	"path/filepath"
 	"strings"
