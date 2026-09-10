@@ -238,7 +238,19 @@ rt lock                       # re-encrypt database
 - NEVER leave findings unverified or without recommendations
 - NEVER skip ` + "`rt cred`" + ` when credentials are found
 - NEVER skip ` + "`rt milestone`" + ` for major achievements
-- NEVER skip the wrap-up phase (report + lock)`
+- NEVER skip ` + "`rt serve`" + ` — the dashboard MUST be running before you present results to the user
+- NEVER skip the wrap-up phase (report + lock)
+- NEVER present final results without first running ` + "`rt serve --listen localhost:7777`" + ` and telling the user to open the dashboard
+
+## Completion Checklist (verify ALL before finishing)
+
+Before you say "done" or present a summary, confirm you did ALL of these:
+- [ ] ` + "`rt serve --listen localhost:7777`" + ` is running (dashboard accessible)
+- [ ] All findings have been verified (` + "`rt verify-finding`" + `)
+- [ ] All findings have recommendations (` + "`rt recommend`" + `)
+- [ ] ` + "`rt report --html -o report.html`" + ` was generated
+- [ ] ` + "`rt verify-chain`" + ` passed
+- [ ] Told the user to open http://localhost:7777 to see the dashboard`
 
 const skillPentest = `# Pentest Target
 
@@ -306,7 +318,14 @@ rt stop                              # stop session
 rt lock                              # re-encrypt database
 ` + "```" + `
 
-Present summary to user. Dashboard should already be running for them to explore.
+**STOP**: Before presenting results to the user, confirm:
+1. ` + "`rt serve --listen localhost:7777`" + ` is running
+2. You told the user to open http://localhost:7777
+3. All findings verified + recommendations added
+4. ` + "`rt report --html -o report.html`" + ` generated
+5. ` + "`rt verify-chain`" + ` passed
+
+If ANY of these is missing, do it NOW before continuing.
 `
 
 const skillReport = `# Generate Pentest Report
