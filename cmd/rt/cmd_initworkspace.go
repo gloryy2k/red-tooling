@@ -205,6 +205,16 @@ rt serve --listen localhost:7777 &
 Use ` + "`rt exec`" + ` for ALL target commands. Record findings/creds/milestones as you go.
 The dashboard at http://localhost:7777 updates in real-time via WebSocket.
 
+**Evidence Quality Rules (CRITICAL):**
+- Every exploit step MUST be an ` + "`rt exec`" + ` command — milestones alone are NOT evidence
+- If a command fails, diagnose and re-run correctly (on Windows: use ` + "`curl.exe`" + ` not ` + "`curl`" + `)
+- Use ` + "`--`" + ` separator for flags: ` + "`rt exec -- curl.exe -s http://target`" + `
+- Store ALL secrets as credentials: passwords, JWT secrets, cookies/tokens, API keys
+  - Example: ` + "`rt cred admin_jwt <token-value> --host <ip>`" + `
+- Write PoC steps in finding notes: ` + "`rt finding-note <id> \"Step 1: ... Step 2: ...\"`" + `
+  - Or use ` + "`--note`" + ` flag: ` + "`rt finding \"Title\" --priority critical --note \"PoC: ...\"`" + `
+- Screenshots are MANDATORY for web vulnerabilities: ` + "`rt screenshot <file>`" + `
+
 ### Phase 3: Wrap Up (MANDATORY — do not skip)
 ` + "```bash" + `
 rt standup                    # summary of what was done
@@ -233,8 +243,11 @@ rt lock                       # re-encrypt database
 - NEVER run rt commands without setting RT_HOME first
 - NEVER run target commands outside ` + "`rt exec`" + `
 - NEVER leave findings unverified or without recommendations
-- NEVER skip ` + "`rt cred`" + ` when credentials are found
+- NEVER skip ` + "`rt cred`" + ` when credentials are found (passwords, tokens, cookies, API keys — ALL of them)
 - NEVER skip ` + "`rt milestone`" + ` for major achievements
+- NEVER log only a milestone without the actual exploit command via ` + "`rt exec`" + `
+- NEVER skip screenshots for web vulnerabilities
+- NEVER leave findings without PoC steps in notes
 - NEVER skip ` + "`rt serve`" + ` — the dashboard MUST be running before you present results to the user
 - NEVER skip the wrap-up phase (report + lock)
 - NEVER present final results without first running ` + "`rt serve --listen localhost:7777`" + ` and telling the user to open the dashboard
@@ -283,13 +296,39 @@ rt serve --listen localhost:7777 &
 
 ## Step 3: Test (ALL commands through rt exec)
 
-- ` + "`rt exec <cmd>`" + ` — every target command
+- ` + "`rt exec -- <cmd>`" + ` — every target command (use ` + "`--`" + ` before flags like -s)
 - ` + "`rt finding \"Title\" --priority <sev> --mitre <id>`" + ` — every vuln found
 - ` + "`rt cred <user> <secret> --host <ip>`" + ` — every credential found
 - ` + "`rt milestone \"Description\"`" + ` — every major achievement
 - ` + "`rt scope-tested <host>`" + ` — after testing each host
-- ` + "`rt screenshot <file>`" + ` — for visual evidence
+- ` + "`rt screenshot <file>`" + ` — for visual evidence (MANDATORY for web vulns)
 - ` + "`rt check <id>`" + ` — check off completed PTES phases as you go
+
+### Evidence Quality Rules (CRITICAL)
+
+1. **Every exploit step MUST be an ` + "`rt exec`" + ` command** — milestones alone are NOT evidence.
+   If you discover a vuln, the actual curl/request that proves it MUST be captured via ` + "`rt exec`" + `.
+   Bad: only ` + "`rt milestone \"Found SSTI\"`" + `. Good: ` + "`rt exec -- curl.exe -s ... (payload)`" + ` THEN milestone.
+
+2. **If a command fails (exit code != 0), diagnose and re-run correctly.**
+   On Windows PowerShell: use ` + "`curl.exe`" + ` not ` + "`curl`" + `. Quote POST data properly.
+   Example: ` + "`rt exec -- curl.exe -s -X POST -d \"username=user&password=pass\" http://target/login`" + `
+
+3. **Store ALL secrets as credentials:**
+   - Passwords: ` + "`rt cred <user> <password> --host <ip>`" + `
+   - JWT secrets: ` + "`rt cred JWT_SECRET <secret> --host <ip>`" + `
+   - Session cookies/tokens: ` + "`rt cred admin_jwt <token-value> --host <ip>`" + `
+   - API keys: ` + "`rt cred API_KEY <key> --host <ip>`" + `
+   Any value that grants access MUST be stored for reuse.
+
+4. **Write PoC steps in finding notes:**
+   After creating a finding, add detailed PoC steps:
+   ` + "`rt finding-note <id> \"Step 1: curl ... Step 2: ... Result: ...\"`" + `
+   Or use ` + "`--note`" + ` flag: ` + "`rt finding \"Title\" --priority critical --note \"PoC: curl -s ...\"`" + `
+
+5. **Screenshots are MANDATORY for web vulnerabilities.**
+   Save browser evidence as screenshots and attach them:
+   ` + "`rt screenshot <file> [evidence-id]`" + `
 
 You decide the attack strategy. RT is your evidence pipeline, not your playbook.
 Think like a pentester: enumerate, analyze, exploit, escalate, document.

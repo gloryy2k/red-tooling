@@ -259,8 +259,17 @@ pre { background: #1a1a2e; color: #e0e0e0; padding: 1rem; border-radius: 6px; ov
   <p><strong>Priority:</strong> <span class="{{$f.Priority}}">{{$f.Priority}}</span> | <strong>Status:</strong> <span class="{{$f.Verified}}">{{$f.Verified}}</span></p>
   {{if $f.Description}}<p><strong>Description:</strong> {{$f.Description}}</p>{{end}}
   {{if $f.Mitre}}<p><strong>MITRE ATT&CK:</strong> {{join $f.Mitre ", "}}</p>{{end}}
-  {{if $f.Recommendation}}<p><strong>Recommendation:</strong> {{$f.Recommendation}}</p>{{end}}
-  {{if $f.Notes}}<p><strong>Notes:</strong> {{$f.Notes}}</p>{{end}}
+  {{if $f.Notes}}
+  <div style="margin:12px 0">
+    <strong>Proof of Concept:</strong>
+    <pre style="margin-top:6px">{{$f.Notes}}</pre>
+  </div>
+  {{end}}
+  {{if $f.Recommendation}}
+  <div style="margin:12px 0;padding:10px 14px;background:#f0fff0;border-left:3px solid #28a745;border-radius:4px">
+    <strong>Recommendation:</strong> {{$f.Recommendation}}
+  </div>
+  {{end}}
 </div>
 {{end}}
 
