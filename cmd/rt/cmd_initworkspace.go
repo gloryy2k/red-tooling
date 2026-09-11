@@ -217,24 +217,34 @@ The dashboard at http://localhost:7777 updates in real-time via WebSocket.
 
 ### Phase 3: Wrap Up (MANDATORY — do not skip)
 ` + "```bash" + `
-rt standup                    # summary of what was done
-rt verify-chain               # verify evidence integrity
-rt report --html -o report.html  # generate report
-rt stop                       # stop session
-rt lock                       # re-encrypt database
+# Write PoC notes for EVERY finding (report uses these)
+rt findings                          # list all — note the IDs
+rt finding-note <id> "Step 1: <exact command>
+Step 2: <observation>
+Result: <what was achieved>"         # repeat for EACH finding
+
+rt verify-finding <id> confirmed     # verify each
+rt recommend <id> "Fix steps"        # recommend each
+rt standup                           # summary of what was done
+rt verify-chain                      # verify evidence integrity
+rt report --html -o report.html      # generate report
+rt stop                              # stop session
+rt lock                              # re-encrypt database
 ` + "```" + `
 
 ## Quick Reference
 
 | Action | Command |
 |--------|---------|
-| Execute + capture | ` + "`rt exec <cmd>`" + ` |
+| Execute + capture | ` + "`rt exec -- <cmd>`" + ` |
 | Create finding | ` + "`rt finding \"Title\" --priority high --mitre T1190`" + ` |
+| Add PoC notes | ` + "`rt finding-note <id> \"Step 1: ... Result: ...\"`" + ` |
 | Store credential | ` + "`rt cred <user> <secret> --host <ip>`" + ` |
 | Mark milestone | ` + "`rt milestone \"Got admin\"`" + ` |
 | Attach screenshot | ` + "`rt screenshot <file> [evidence-id]`" + ` |
 | Verify finding | ` + "`rt verify-finding <id> confirmed`" + ` |
 | Add recommendation | ` + "`rt recommend <id> \"Fix\"`" + ` |
+| Check notes exist | ` + "`rt query \"SELECT id,title,notes FROM findings\"`" + ` |
 | Dashboard | ` + "`rt serve --listen localhost:7777`" + ` |
 | Generate report | ` + "`rt report --html -o report.html`" + ` |
 
@@ -256,6 +266,7 @@ rt lock                       # re-encrypt database
 
 Before you say "done" or present a summary, confirm you did ALL of these:
 - [ ] ` + "`rt serve --listen localhost:7777`" + ` is running (dashboard accessible)
+- [ ] **Every finding has PoC notes** — run ` + "`rt query \"SELECT id, title, notes FROM findings\"`" + ` — if ANY row shows NULL notes, write them with ` + "`rt finding-note <id> \"...\"`" + ` NOW
 - [ ] All findings verified WITH screenshots (` + "`rt verify-finding <id> confirmed --screenshot <file>`" + `)
 - [ ] All findings have recommendations (` + "`rt recommend`" + `)
 - [ ] Checklist phases checked off (` + "`rt check <id>`" + ` for each completed phase)
@@ -337,33 +348,44 @@ Think like a pentester: enumerate, analyze, exploit, escalate, document.
 ## Step 4: Wrap Up (MANDATORY — do ALL of these)
 
 ` + "```bash" + `
-# Verify + recommend all findings (attach screenshots!)
-rt findings                          # list all
+# 4a. PoC notes for EVERY finding (MANDATORY — run this for each finding)
+rt findings                          # list all — note the IDs
+rt finding-note 1 "Step 1: <exact command used>
+Step 2: <what happened>
+Result: <what was achieved/extracted>"
+rt finding-note 2 "..."              # repeat for each finding
+# PoC must include the actual commands, not just a summary!
+
+# 4b. Verify + recommend all findings
 rt verify-finding <id> confirmed --screenshot <file>  # verify with screenshot
 rt recommend <id> "Fix description"  # recommend each
+
+# 4c. Checklist
 rt checklist                         # review checklist
 rt check <id>                        # check off completed phases
 
-# Generate deliverables
+# 4d. Generate deliverables
 rt standup                           # progress summary
 rt verify-chain                      # integrity check
 rt report --html -o report.html      # HTML report
 
-# Clean up
+# 4e. Clean up
 rt stop                              # stop session
 rt lock                              # re-encrypt database
 ` + "```" + `
 
-**STOP**: Before presenting results to the user, confirm:
+**STOP GATE — verify ALL before presenting results:**
 1. ` + "`rt serve --listen localhost:7777`" + ` is running
 2. You told the user to open http://localhost:7777
-3. All findings verified with screenshots (` + "`rt verify-finding <id> confirmed --screenshot <file>`" + `)
-4. All findings have recommendations (` + "`rt recommend <id> \"...\"`" + `)
-5. Checklist items checked off (` + "`rt check <id>`" + ` for completed phases)
-6. ` + "`rt report --html -o report.html`" + ` generated
-7. ` + "`rt verify-chain`" + ` passed
+3. **Every finding has PoC notes** (` + "`rt finding-note <id> \"...\"`" + `) — run ` + "`rt query \"SELECT id, title, notes FROM findings\"`" + ` and if ANY notes is NULL, write them NOW
+4. All findings verified with screenshots (` + "`rt verify-finding <id> confirmed --screenshot <file>`" + `)
+5. All findings have recommendations (` + "`rt recommend <id> \"...\"`" + `)
+6. Checklist items checked off (` + "`rt check <id>`" + ` for completed phases)
+7. ` + "`rt report --html -o report.html`" + ` generated
+8. ` + "`rt verify-chain`" + ` passed
 
-If ANY of these is missing, do it NOW before continuing.
+**If ANY finding has NULL notes, you MUST write PoC notes before continuing.**
+The report PoC section is generated from notes — empty notes = empty report.
 `
 
 const skillReport = `# Generate Pentest Report
