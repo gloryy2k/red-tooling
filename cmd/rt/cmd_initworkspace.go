@@ -190,25 +190,22 @@ set RT_HOME=%cd%\.rt
 
 ## Mandatory Workflow
 
-### Phase 1: Setup (BEFORE testing)
+### Phase 1: Setup + Dashboard (BEFORE testing)
 ` + "```bash" + `
 rt new "<engagement-name>" --client "<client>"
 rt unlock
 rt scope <target-hosts>
 rt checklist-load ptes
 rt start
+rt serve --listen localhost:7777 &
+# Tell the user to open http://localhost:7777 for live tracking
 ` + "```" + `
 
 ### Phase 2: Testing
 Use ` + "`rt exec`" + ` for ALL target commands. Record findings/creds/milestones as you go.
+The dashboard at http://localhost:7777 updates in real-time via WebSocket.
 
-### Phase 3: Dashboard (start BEFORE wrap-up)
-` + "```bash" + `
-rt serve --listen localhost:7777 &
-# Open http://localhost:7777 in browser to verify all data
-` + "```" + `
-
-### Phase 4: Wrap Up (MANDATORY — do not skip)
+### Phase 3: Wrap Up (MANDATORY — do not skip)
 ` + "```bash" + `
 rt standup                    # summary of what was done
 rt verify-chain               # verify evidence integrity
@@ -271,7 +268,7 @@ export RT_HOME="$(pwd)/.rt"
 
 **VERIFY**: Run ` + "`echo $env:RT_HOME`" + ` (PS) or ` + "`echo $RT_HOME`" + ` (bash) — it must point to THIS project directory, not ~/.rt.
 
-## Step 2: Create Engagement
+## Step 2: Create Engagement + Start Dashboard
 
 ` + "```bash" + `
 rt new "<name-from-target>" --client "Pentest"
@@ -279,7 +276,10 @@ rt unlock
 rt scope <target-host>
 rt checklist-load ptes
 rt start
+rt serve --listen localhost:7777 &
 ` + "```" + `
+
+**Tell the user**: "Dashboard is live at http://localhost:7777 — open it for real-time tracking."
 
 ## Step 3: Test (ALL commands through rt exec)
 
@@ -295,15 +295,7 @@ You decide the attack strategy. RT is your evidence pipeline, not your playbook.
 Think like a pentester: enumerate, analyze, exploit, escalate, document.
 **Mark checklist items as you complete each phase** (e.g. after recon: ` + "`rt check 5`" + ` through ` + "`rt check 9`" + `).
 
-## Step 4: Serve Dashboard (start in background BEFORE wrap-up)
-
-` + "```bash" + `
-# Start dashboard so user can see all data visually
-rt serve --listen localhost:7777
-# Tell user to open http://localhost:7777
-` + "```" + `
-
-## Step 5: Wrap Up (MANDATORY — do ALL of these)
+## Step 4: Wrap Up (MANDATORY — do ALL of these)
 
 ` + "```bash" + `
 # Verify + recommend all findings (attach screenshots!)

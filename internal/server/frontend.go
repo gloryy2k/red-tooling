@@ -421,7 +421,7 @@ tr.clickable:hover td{background:var(--surface-2)}
     </div>
     <div class="card">
       <div class="card-hdr"><span>Activity</span></div>
-      <div style="padding:8px 14px" id="overview-activity"></div>
+      <div style="padding:8px 14px;max-height:400px;overflow-y:auto" id="overview-activity"></div>
     </div>
   </div>
   <div class="card">
@@ -442,7 +442,7 @@ tr.clickable:hover td{background:var(--surface-2)}
     <div class="filter-chip" data-filter="milestone">Milestones</div>
     <div class="filter-chip" data-filter="cred">Creds found</div>
   </div>
-  <div class="card"><table><thead><tr><th style="width:40px">#</th><th style="width:70px">Time</th><th>Command</th><th style="width:60px">Exit</th><th>Tags</th><th style="width:30px"></th></tr></thead><tbody id="evidence-table"></tbody></table></div>
+  <div class="card"><table><thead><tr><th style="width:40px">#</th><th style="width:70px">Time</th><th>Command</th><th style="width:60px">Exit</th><th style="max-width:200px">Output</th><th>Tags</th><th style="width:30px"></th></tr></thead><tbody id="evidence-table"></tbody></table></div>
 </div>
 
 <!-- ===== FINDINGS ===== -->
@@ -494,7 +494,7 @@ tr.clickable:hover td{background:var(--surface-2)}
     <div class="card tpl-edit-area">
       <div style="display:flex;flex-direction:column;border-right:1px solid var(--border)">
         <div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Editor</div>
-        <textarea id="template-editor" style="flex:1;resize:none;border:none;background:var(--bg);color:var(--text);padding:12px;font-family:'Fira Code',monospace;font-size:13px;line-height:1.6;outline:none" placeholder="Select a template to edit..." oninput="updateTemplatePreview()"></textarea>
+        <textarea id="template-editor" style="flex:1;resize:none;border:none;background:var(--bg);color:var(--text);padding:12px;font-family:'Fira Code',monospace;font-size:13px;line-height:1.6;outline:none;overflow-y:auto" placeholder="Select a template to edit..." oninput="updateTemplatePreview()"></textarea>
       </div>
       <div style="display:flex;flex-direction:column">
         <div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Preview</div>
@@ -647,8 +647,8 @@ async function loadOverview(){
   // Activity from timeline
   const ev=await api('/api/timeline');
   cachedEvidence=ev||[];
-  document.getElementById('overview-activity').innerHTML=(ev||[]).slice(0,8).map(e=>
-    '<div class="activity-item"><span class="activity-time">'+fmtTime(e.timestamp)+'</span><span>'+esc(e.action)+': <strong class="mono">'+esc((e.input||'').substring(0,40))+'</strong></span></div>'
+  document.getElementById('overview-activity').innerHTML=(ev||[]).slice(0,20).map(e=>
+    '<div class="activity-item"><span class="activity-time">'+fmtTime(e.timestamp)+'</span><span>'+esc(e.action)+': <strong class="mono">'+esc((e.input||'').substring(0,60))+'</strong></span></div>'
   ).join('')||'<div style="color:var(--muted);padding:12px">No activity yet</div>';
 
   // Checklist
@@ -680,8 +680,8 @@ async function loadEvidence(){
 }
 function renderEvidence(ev){
   document.getElementById('evidence-table').innerHTML=(ev||[]).map(e=>
-    '<tr class="clickable" onclick="showEvidenceDetail('+e.id+')"><td>'+e.id+'</td><td style="font-variant-numeric:tabular-nums" class="mono">'+fmtTime(e.timestamp)+'</td><td class="mono" style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.input)+'</td><td>'+(e.exit_code===0?'<span style="color:var(--green)">0</span>':'<span style="color:var(--red)">'+e.exit_code+'</span>')+'</td><td>'+(e.tags||[]).map(t=>tagSpan(t)).join('')+'</td><td><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></td></tr>'
-  ).join('')||'<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:20px">No evidence</td></tr>';
+    '<tr class="clickable" onclick="showEvidenceDetail('+e.id+')"><td>'+e.id+'</td><td style="font-variant-numeric:tabular-nums" class="mono">'+fmtTime(e.timestamp)+'</td><td class="mono" style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.input)+'</td><td>'+(e.exit_code===0?'<span style="color:var(--green)">0</span>':'<span style="color:var(--red)">'+e.exit_code+'</span>')+'</td><td class="mono" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:var(--text-2)">'+esc((e.output||'').substring(0,80))+'</td><td>'+(e.tags||[]).map(t=>tagSpan(t)).join('')+'</td><td><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></td></tr>'
+  ).join('')||'<tr><td colspan="7" style="color:var(--muted);text-align:center;padding:20px">No evidence</td></tr>';
 }
 
 // Evidence filters
@@ -706,7 +706,7 @@ async function showEvidenceDetail(id){
     '<div class="detail-field"><div class="lbl">Command</div><div class="val mono" style="word-break:break-all">'+esc(ev.Input)+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Exit code</div><div class="val">'+(ev.ExitCode===0?'<span style="color:var(--green)">0</span>':'<span style="color:var(--red)">'+ev.ExitCode+'</span>')+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Timestamp</div><div class="val">'+fmtDate(ev.Timestamp)+'</div></div>'+
-    '<div class="detail-field"><div class="lbl">Tags</div><div class="val">'+(ev.Tags||[]).map(t=>tagSpan(t)).join(' ')||'<span style="color:var(--muted)">none</span>'+'</div></div>'+
+    '<div class="detail-field"><div class="lbl">Tags</div><div class="val">'+((ev.Tags||[]).map(t=>tagSpan(t)).join(' ')||'<span style="color:var(--muted)">none</span>')+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Hash</div><div class="val mono" style="font-size:10px;color:var(--muted);word-break:break-all">'+esc(ev.Hash)+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Attachments ('+att.length+')</div><div class="val">'+renderAttachments(att)+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Output</div><div class="output-box" id="ev-output">'+esc(ev.Output||'(no output)')+'</div>'+
@@ -832,15 +832,15 @@ async function loadCreds(){
   const c=await api('/api/creds');
   if(!c)return;
   document.getElementById('creds-table').innerHTML=(c||[]).map(x=>
-    '<tr><td><input type="checkbox" class="cred-cb" value="'+x.ID+'" onchange="updateCredBulkBar()"></td>'+
+    '<tr><td><input type="checkbox" class="cred-cb" value="'+x.id+'" onchange="updateCredBulkBar()"></td>'+
     '<td style="font-weight:500" class="mono">'+esc(x.Username)+'</td>'+
-    '<td><span class="mono" id="cred-secret-'+x.ID+'" style="letter-spacing:2px">••••••••</span> '+
-    '<button class="btn sm ghost" onclick="revealCred('+x.ID+')" title="Reveal">👁</button> '+
-    '<button class="btn sm ghost" onclick="copyCred('+x.ID+')" title="Copy">📋</button></td>'+
+    '<td><span class="mono" id="cred-secret-'+x.id+'" style="letter-spacing:2px">••••••••</span> '+
+    '<button class="btn sm ghost" onclick="revealCred('+x.id+')" title="Reveal">👁</button> '+
+    '<button class="btn sm ghost" onclick="copyCred('+x.id+')" title="Copy">📋</button></td>'+
     '<td>'+esc(x.CredType)+'</td>'+
     '<td class="mono">'+esc(x.Host)+'</td>'+
     '<td>'+(x.SourceEvidenceID?'<a class="link" onclick="goPage(\'evidence\');setTimeout(()=>showEvidenceDetail('+x.SourceEvidenceID+'),300)">#'+x.SourceEvidenceID+'</a>':'—')+'</td>'+
-    '<td><button class="btn sm danger" onclick="deleteCred('+x.ID+')">Delete</button></td></tr>'
+    '<td><button class="btn sm danger" onclick="deleteCred('+x.id+')">Delete</button></td></tr>'
   ).join('')||'<tr><td colspan="7" style="color:var(--muted);text-align:center;padding:20px">No credentials</td></tr>';
   updateCredBulkBar();
 }
@@ -1065,6 +1065,25 @@ document.addEventListener('keydown',e=>{
     e.preventDefault();saveTemplate();
   }
 });
+
+// Template scroll sync (VSCode-like)
+(function(){
+  const ed=document.getElementById('template-editor');
+  const pv=document.getElementById('template-preview');
+  let syncing=false;
+  ed.addEventListener('scroll',()=>{
+    if(syncing)return;syncing=true;
+    const pct=ed.scrollTop/(ed.scrollHeight-ed.clientHeight||1);
+    pv.scrollTop=pct*(pv.scrollHeight-pv.clientHeight);
+    syncing=false;
+  });
+  pv.addEventListener('scroll',()=>{
+    if(syncing)return;syncing=true;
+    const pct=pv.scrollTop/(pv.scrollHeight-pv.clientHeight||1);
+    ed.scrollTop=pct*(ed.scrollHeight-ed.clientHeight);
+    syncing=false;
+  });
+})();
 
 // ===== AUDIT =====
 async function loadAudit(){
