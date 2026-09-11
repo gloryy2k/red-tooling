@@ -56,7 +56,16 @@ var findingCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("  Finding #%d created: %s [%s]\n", f.ID, f.Title, f.Priority)
+		noteFlag, _ := cmd.Flags().GetString("note")
+		if noteFlag != "" {
+			if err := findings.SetNotes(database, f.ID, noteFlag, operator); err != nil {
+				return err
+			}
+			fmt.Printf("  Finding #%d created: %s [%s] (with PoC notes)\n", f.ID, f.Title, f.Priority)
+		} else {
+			fmt.Printf("  Finding #%d created: %s [%s]\n", f.ID, f.Title, f.Priority)
+			fmt.Printf("  HINT: Add PoC notes with: rt finding-note %d \"Step 1: ... Result: ...\"\n", f.ID)
+		}
 		return nil
 	},
 }
@@ -206,6 +215,33 @@ var mergeFindingsCmd = &cobra.Command{
 	},
 }
 
+var findingNoteCmd = &cobra.Command{
+	Use:   "finding-note <id> <notes>",
+	Short: "Set PoC notes for a finding (used in report Proof of Concept section)",
+	Args:  cobra.MinimumNArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		database, _, err := requireDB()
+		if err != nil {
+			return err
+		}
+
+		id, err := strconv.ParseInt(args[0], 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid finding ID: %s", args[0])
+		}
+
+		notes := strings.Join(args[1:], " ")
+		operator := getOperator()
+
+		if err := findings.SetNotes(database, id, notes, operator); err != nil {
+			return err
+		}
+
+		fmt.Printf("  PoC notes set for Finding #%d\n", id)
+		return nil
+	},
+}
+
 var recommendCmd = &cobra.Command{
 	Use:   "recommend <finding-id> <recommendation>",
 	Short: "Set a recommendation for a finding",
@@ -238,6 +274,7 @@ func init() {
 	findingCmd.Flags().String("priority", "medium", "Priority: critical, high, medium, low, info")
 	findingCmd.Flags().String("evidence", "", "Comma-separated evidence IDs")
 	findingCmd.Flags().String("mitre", "", "Comma-separated MITRE ATT&CK IDs")
+	findingCmd.Flags().String("note", "", "PoC notes (appears in report Proof of Concept section)")
 
 	verifyFindingCmd.Flags().String("note", "", "Verification note")
 	verifyFindingCmd.Flags().String("screenshot", "", "Screenshot file to attach as verification evidence")

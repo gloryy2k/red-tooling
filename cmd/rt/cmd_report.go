@@ -39,6 +39,21 @@ var reportCmd = &cobra.Command{
 			return err
 		}
 
+		// Warn about findings missing PoC notes
+		var missingNotes []int64
+		for _, f := range data.Findings {
+			if f.Notes == "" {
+				missingNotes = append(missingNotes, f.ID)
+			}
+		}
+		if len(missingNotes) > 0 {
+			fmt.Printf("  WARNING: %d finding(s) have NO PoC notes (report will have empty Proof of Concept sections)\n", len(missingNotes))
+			for _, id := range missingNotes {
+				fmt.Printf("    → rt finding-note %d \"Step 1: ... Step 2: ... Result: ...\"\n", id)
+			}
+			fmt.Println()
+		}
+
 		var content string
 		if htmlFlag {
 			tmplCfg, err := report.LoadTemplate(tmplName)

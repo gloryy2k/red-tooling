@@ -44,6 +44,7 @@ func main() {
 		auditCmd,
 		findingCmd,
 		findingsCmd,
+		findingNoteCmd,
 		verifyFindingCmd,
 		mergeFindingsCmd,
 		recommendCmd,

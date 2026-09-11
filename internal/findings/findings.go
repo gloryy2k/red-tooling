@@ -209,6 +209,16 @@ func SetRecommendation(db *sql.DB, id int64, recommendation, operator string) er
 	return nil
 }
 
+// SetNotes replaces the notes field for a finding.
+func SetNotes(db *sql.DB, id int64, notes, operator string) error {
+	_, err := db.Exec(`UPDATE findings SET notes = ? WHERE id = ?`, notes, id)
+	if err != nil {
+		return fmt.Errorf("set notes: %w", err)
+	}
+	audit.Log(db, operator, "finding.update", "finding", fmt.Sprintf("%d", id), map[string]string{"field": "notes"})
+	return nil
+}
+
 // Delete removes a finding by ID.
 func Delete(db *sql.DB, id int64, operator string) error {
 	_, err := db.Exec(`DELETE FROM findings WHERE id = ?`, id)
