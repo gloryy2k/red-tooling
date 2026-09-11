@@ -11,6 +11,7 @@ import (
 	"github.com/user/rt/internal/engagement"
 	"github.com/user/rt/internal/evidence"
 	"github.com/user/rt/internal/findings"
+	"github.com/user/rt/internal/scope"
 	"github.com/user/rt/internal/session"
 )
 
@@ -19,7 +20,11 @@ type ReportData struct {
 	Sessions     []session.Session
 	Findings     []findings.Finding
 	Evidence     []evidence.Evidence
+	Credentials  []credentials.Credential
+	Scope        []scope.Host
 	CredCount    int
+	ScopeTotal   int
+	ScopeTested  int
 	GeneratedAt  string
 	ChainIntact  bool
 	Stats        Stats
@@ -78,9 +83,11 @@ func Gather(db *sql.DB, engID string, opts Options) (*ReportData, error) {
 		return nil, err
 	}
 
-	credCount := 0
 	creds, _ := credentials.List(db, engID)
-	credCount = len(creds)
+	credCount := len(creds)
+
+	scopeHosts, _ := scope.List(db, engID)
+	scopeTotal, scopeTested := scope.Stats(db, engID)
 
 	chainResults, _ := evidence.VerifyChain(db, engID)
 	chainOK := true
@@ -121,7 +128,11 @@ func Gather(db *sql.DB, engID string, opts Options) (*ReportData, error) {
 		Sessions:    sessions,
 		Findings:    filtered,
 		Evidence:    ev,
+		Credentials: creds,
+		Scope:       scopeHosts,
 		CredCount:   credCount,
+		ScopeTotal:  scopeTotal,
+		ScopeTested: scopeTested,
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 		ChainIntact: chainOK,
 		Stats:       stats,

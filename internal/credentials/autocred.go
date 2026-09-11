@@ -114,6 +114,23 @@ var credPatterns = []struct {
 	},
 }
 
+var falsePositiveUsernames = map[string]bool{
+	"categoryinfo":          true,
+	"fullyqualifiederrorid": true,
+	"targetobject":          true,
+	"errordetails":          true,
+	"pscomputername":        true,
+	"erroraction":           true,
+	"warningaction":         true,
+	"informationaction":     true,
+	"errorvariable":         true,
+	"warningvariable":       true,
+	"informationvariable":   true,
+	"outbuffer":             true,
+	"outvariable":           true,
+	"pipelinevariable":      true,
+}
+
 // ParseCredentials extracts credentials from command output.
 func ParseCredentials(output, host string) []ParsedCred {
 	var results []ParsedCred
@@ -142,6 +159,10 @@ func ParseCredentials(output, host string) []ParsedCred {
 			}
 			// Skip empty/null secrets
 			if cred.Secret == "" || cred.Secret == "(null)" {
+				continue
+			}
+			// Skip PowerShell error property names parsed as usernames
+			if falsePositiveUsernames[strings.ToLower(cred.Username)] {
 				continue
 			}
 
