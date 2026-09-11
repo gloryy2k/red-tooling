@@ -310,7 +310,7 @@ tr.clickable:hover td{background:var(--surface-2)}
 .grid-2{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:12px}
 @media(max-width:900px){.grid-2{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}}
 .tpl-grid{display:grid;grid-template-columns:180px 1fr;gap:8px;height:calc(100vh - 140px)}
-.tpl-edit-area{display:grid;grid-template-columns:1fr 1fr;gap:0;overflow:hidden;padding:0}
+.tpl-edit-area{display:grid;grid-template-columns:1fr 1fr;gap:0;overflow:hidden;padding:0;min-height:0}
 @media(max-width:800px){.tpl-grid{grid-template-columns:140px 1fr}}
 </style></head><body>
 
@@ -492,13 +492,13 @@ tr.clickable:hover td{background:var(--surface-2)}
   <div class="tpl-grid">
     <div class="card" style="overflow-y:auto;padding:6px" id="template-list"></div>
     <div class="card tpl-edit-area">
-      <div style="display:flex;flex-direction:column;border-right:1px solid var(--border)">
+      <div style="display:flex;flex-direction:column;border-right:1px solid var(--border);min-height:0;overflow:hidden">
         <div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Editor</div>
-        <textarea id="template-editor" style="flex:1;resize:none;border:none;background:var(--bg);color:var(--text);padding:12px;font-family:'Fira Code',monospace;font-size:13px;line-height:1.6;outline:none;overflow-y:auto" placeholder="Select a template to edit..." oninput="updateTemplatePreview()"></textarea>
+        <textarea id="template-editor" style="flex:1;min-height:0;resize:none;border:none;background:var(--bg);color:var(--text);padding:12px;font-family:'Fira Code',monospace;font-size:13px;line-height:1.6;outline:none;overflow-y:auto" placeholder="Select a template to edit..." oninput="updateTemplatePreview()"></textarea>
       </div>
-      <div style="display:flex;flex-direction:column">
+      <div style="display:flex;flex-direction:column;min-height:0;overflow:hidden">
         <div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Preview</div>
-        <div id="template-preview" style="flex:1;overflow-y:auto;padding:12px;font-size:13px;line-height:1.6"></div>
+        <div id="template-preview" style="flex:1;min-height:0;overflow-y:auto;padding:12px;font-size:13px;line-height:1.6"></div>
       </div>
     </div>
   </div>
