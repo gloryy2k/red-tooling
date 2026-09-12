@@ -49,6 +49,8 @@ func OpenPlain(engName string) (*sql.DB, error) {
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
 
+	migrate(db)
+
 	currentDB = db
 	currentEng = engName
 	return db, nil
@@ -260,7 +262,14 @@ func clearPassphrase(engName string) {
 
 func migrate(db *sql.DB) error {
 	_, err := db.Exec(schema)
-	return err
+	if err != nil {
+		return err
+	}
+	// Add host column to evidence if missing (added in P1.3)
+	db.Exec(`ALTER TABLE evidence ADD COLUMN host TEXT DEFAULT ''`)
+	// Add roe column to engagements if missing (added in P1.7)
+	db.Exec(`ALTER TABLE engagements ADD COLUMN roe TEXT DEFAULT ''`)
+	return nil
 }
 
 const schema = `
@@ -317,7 +326,8 @@ CREATE TABLE IF NOT EXISTS evidence (
     hash TEXT NOT NULL,
     prev_hash TEXT NOT NULL,
     operator_sig TEXT,
-    is_deleted INTEGER DEFAULT 0
+    is_deleted INTEGER DEFAULT 0,
+    host TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS credentials (

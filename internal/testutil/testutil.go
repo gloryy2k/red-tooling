@@ -58,7 +58,8 @@ CREATE TABLE IF NOT EXISTS evidence (
     hash TEXT NOT NULL,
     prev_hash TEXT NOT NULL,
     operator_sig TEXT,
-    is_deleted INTEGER DEFAULT 0
+    is_deleted INTEGER DEFAULT 0,
+    host TEXT DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS credentials (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

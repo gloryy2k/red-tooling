@@ -64,3 +64,37 @@ func List(db *sql.DB) ([]Engagement, error) {
 	}
 	return list, rows.Err()
 }
+
+// Update modifies engagement metadata fields.
+func Update(db *sql.DB, id, name, client, startDate, endDate, status, operator string) error {
+	_, err := db.Exec(
+		`UPDATE engagements SET name = ?, client = ?, start_date = ?, end_date = ?, status = ? WHERE id = ?`,
+		name, client, startDate, endDate, status, id,
+	)
+	if err != nil {
+		return fmt.Errorf("update engagement: %w", err)
+	}
+	audit.Log(db, operator, "engagement.update", "engagement", id,
+		map[string]string{"name": name, "client": client, "status": status})
+	return nil
+}
+
+// GetROE returns the rules of engagement text.
+func GetROE(db *sql.DB, id string) string {
+	var roe sql.NullString
+	db.QueryRow(`SELECT roe FROM engagements WHERE id = ?`, id).Scan(&roe)
+	if roe.Valid {
+		return roe.String
+	}
+	return ""
+}
+
+// SetROE updates the rules of engagement text.
+func SetROE(db *sql.DB, id, roe, operator string) error {
+	_, err := db.Exec(`UPDATE engagements SET roe = ? WHERE id = ?`, roe, id)
+	if err != nil {
+		return fmt.Errorf("set ROE: %w", err)
+	}
+	audit.Log(db, operator, "engagement.set_roe", "engagement", id, nil)
+	return nil
+}

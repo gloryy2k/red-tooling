@@ -15,8 +15,57 @@ func (s *Server) handleFrontend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if path == "/setup" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write([]byte(setupPage()))
+		return
+	}
+
+	// Check if user is authenticated before serving dashboard
+	authenticated := false
+
+	if cookie, err := r.Cookie("rt_session"); err == nil {
+		if sess := s.Sessions.Get(cookie.Value); sess != nil {
+			authenticated = true
+		}
+	}
+
+	// Localhost solo mode (no operators = no auth needed)
+	if !authenticated && s.isLocalhost() && !s.hasOperators() {
+		authenticated = true
+	}
+
+	if !authenticated {
+		// Redirect to setup if no operators, login otherwise
+		if !s.hasOperators() {
+			http.Redirect(w, r, "/setup", http.StatusFound)
+		} else {
+			http.Redirect(w, r, "/login", http.StatusFound)
+		}
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(dashboardPage(html.EscapeString(s.EngName))))
+}
+
+func authPageStyles() string {
+	return `:root{--bg:#0a0a1a;--surface:#141428;--border:#2a2a4a;--text:#e8e8f0;--muted:#888;--accent:#e94560;--accent-hover:#c73650;--green:#22c55e}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex;justify-content:center;align-items:center;min-height:100vh}
+.box{background:var(--surface);padding:2.5rem;border-radius:16px;width:420px;border:1px solid var(--border)}
+h1{color:var(--accent);margin:0 0 .5rem;font-size:1.4rem;font-weight:600}
+p{color:var(--muted);font-size:.85rem;margin-bottom:1.5rem}
+label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.5px}
+input{width:100%;padding:12px 14px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:.9rem;margin-bottom:1rem;outline:none;transition:border .15s}
+input:focus{border-color:var(--accent)}
+button{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:.9rem;cursor:pointer;font-weight:500;transition:background .15s}
+button:hover{background:var(--accent-hover)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.err{color:var(--accent);text-align:center;margin-top:.75rem;font-size:.85rem;display:none}
+.key-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;margin:1rem 0;font-family:monospace;font-size:.85rem;word-break:break-all;color:var(--green);display:none}
+.key-label{font-size:.8rem;color:var(--accent);margin-bottom:.4rem;font-weight:600;display:none}
+.copy-btn{width:auto;padding:6px 16px;font-size:.8rem;margin-top:.5rem;display:none}`
 }
 
 func loginPage() string {
@@ -24,36 +73,77 @@ func loginPage() string {
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>RT — Login</title>
-<style>
-:root{--bg:#0a0a1a;--surface:#141428;--border:#2a2a4a;--text:#e8e8f0;--muted:#888;--accent:#e94560;--accent-hover:#c73650}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex;justify-content:center;align-items:center;min-height:100vh}
-.box{background:var(--surface);padding:2.5rem;border-radius:16px;width:380px;border:1px solid var(--border)}
-h1{color:var(--accent);margin:0 0 .5rem;font-size:1.4rem;font-weight:600}
-p{color:var(--muted);font-size:.85rem;margin-bottom:1.5rem}
-input{width:100%;padding:12px 14px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:.9rem;margin-bottom:1rem;outline:none;transition:border .15s}
-input:focus{border-color:var(--accent)}
-button{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:.9rem;cursor:pointer;font-weight:500;transition:background .15s}
-button:hover{background:var(--accent-hover)}
-.err{color:var(--accent);text-align:center;margin-top:.75rem;font-size:.85rem;display:none}
-</style></head><body>
+<style>` + authPageStyles() + `</style></head><body>
 <div class="box">
 <h1>RT Dashboard</h1>
-<p>Enter your API key to access the dashboard</p>
-<input type="password" id="key" placeholder="API Key (rt_key_...)" autofocus>
-<button onclick="login()">Sign in</button>
-<div class="err" id="err">Invalid API key</div>
+<p>Enter your API key to sign in</p>
+<label>API Key</label>
+<input type="password" id="key" placeholder="rt_key_..." autofocus>
+<button onclick="login()" id="btn">Sign in</button>
+<div class="err" id="err"></div>
 </div>
 <script>
-function login(){
-  const key=document.getElementById('key').value;
+async function login(){
+  const key=document.getElementById('key').value.trim();
   if(!key)return;
-  fetch('/api/overview',{headers:{'X-API-Key':key}}).then(r=>{
-    if(r.ok){localStorage.setItem('rt_api_key',key);location.href='/';}
-    else{document.getElementById('err').style.display='block';}
-  });
+  const btn=document.getElementById('btn');
+  btn.disabled=true;btn.textContent='Signing in...';
+  try{
+    const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key})});
+    if(r.ok){location.href='/';}
+    else{const d=await r.json();showErr(d.error||'Invalid API key');}
+  }catch(e){showErr('Connection failed');}
+  btn.disabled=false;btn.textContent='Sign in';
 }
+function showErr(msg){const el=document.getElementById('err');el.textContent=msg;el.style.display='block';}
 document.getElementById('key').addEventListener('keypress',e=>{if(e.key==='Enter')login()});
+</script></body></html>`
+}
+
+func setupPage() string {
+	return `<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RT — Setup</title>
+<style>` + authPageStyles() + `</style></head><body>
+<div class="box" id="setup-form">
+<h1>RT — Initial Setup</h1>
+<p>No operators configured. Create your lead account to get started.</p>
+<label>Your Name</label>
+<input type="text" id="name" placeholder="e.g. alice" autofocus>
+<button onclick="setup()" id="btn">Create Lead Account</button>
+<div class="err" id="err"></div>
+</div>
+<div class="box" id="setup-done" style="display:none">
+<h1>Account Created</h1>
+<p>Save your API key — it will only be shown once.</p>
+<div class="key-label" id="key-label" style="display:block">Your API Key</div>
+<div class="key-box" id="api-key" style="display:block"></div>
+<button class="copy-btn" id="copy-btn" style="display:inline-block;width:auto" onclick="copyKey()">Copy to clipboard</button>
+<div style="margin-top:1.5rem">
+<button onclick="location.href='/'">Continue to Dashboard</button>
+</div>
+</div>
+<script>
+async function setup(){
+  const name=document.getElementById('name').value.trim();
+  if(!name)return;
+  const btn=document.getElementById('btn');
+  btn.disabled=true;btn.textContent='Creating...';
+  try{
+    const r=await fetch('/api/auth/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name})});
+    if(r.ok){
+      const d=await r.json();
+      document.getElementById('api-key').textContent=d.api_key;
+      document.getElementById('setup-form').style.display='none';
+      document.getElementById('setup-done').style.display='block';
+    }else{const d=await r.json();showErr(d.error||'Setup failed');}
+  }catch(e){showErr('Connection failed');}
+  btn.disabled=false;btn.textContent='Create Lead Account';
+}
+function copyKey(){navigator.clipboard.writeText(document.getElementById('api-key').textContent);document.getElementById('copy-btn').textContent='Copied!';}
+function showErr(msg){const el=document.getElementById('err');el.textContent=msg;el.style.display='block';}
+document.getElementById('name').addEventListener('keypress',e=>{if(e.key==='Enter')setup()});
 </script></body></html>`
 }
 
@@ -109,6 +199,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .topbar-search:hover{border-color:var(--border-hover)}
 .topbar-btn{display:flex;align-items:center;gap:4px;padding:5px 10px;background:transparent;border:1px solid var(--border);border-radius:var(--radius);color:var(--text-2);font-size:12px;cursor:pointer;transition:all .15s}
 .topbar-btn:hover{background:var(--surface-2);border-color:var(--border-hover)}
+.topbar-user{display:flex;align-items:center;gap:8px;padding-left:8px;border-left:1px solid var(--border)}
+.topbar-user-name{font-size:12px;font-weight:500;color:var(--text)}
+.topbar-user-role{font-size:10px;padding:1px 6px;border-radius:8px;background:var(--accent-bg);color:var(--accent);text-transform:uppercase;letter-spacing:.5px}
+.rbac-hidden{display:none!important}
 
 /* === SIDEBAR === */
 .sidebar{background:var(--surface);border-right:1px solid var(--border);padding:8px 0;overflow-y:auto;display:flex;flex-direction:column}
@@ -341,6 +435,13 @@ tr.clickable:hover td{background:var(--surface-2)}
       <div class="presence-tooltip" id="presence-list"></div>
     </div>
     <span class="topbar-status" id="ws-badge">offline</span>
+    <div class="topbar-user" id="topbar-user">
+      <span class="topbar-user-name" id="user-name"></span>
+      <span class="topbar-user-role" id="user-role"></span>
+      <button class="topbar-btn" onclick="logout()" title="Sign out">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -401,6 +502,14 @@ tr.clickable:hover td{background:var(--surface-2)}
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       Audit log
     </div>
+    <div class="nav-item rbac-hidden" data-page="team" data-rbac="operators">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Team
+    </div>
+    <div class="nav-item rbac-hidden" data-page="settings" data-rbac="operators">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </div>
   </div>
   <div class="sidebar-footer">
     <div style="font-size:11px;color:var(--muted)">RT v2.0 — <span id="footer-time"></span></div>
@@ -414,6 +523,10 @@ tr.clickable:hover td{background:var(--surface-2)}
 <!-- ===== OVERVIEW ===== -->
 <div id="pg-overview" class="page active">
   <div class="stats" id="overview-stats"></div>
+  <div class="card">
+    <div class="card-hdr"><span>Daily progress</span><span id="chart-label" style="font-size:11px;color:var(--muted);font-weight:400"></span></div>
+    <div id="daily-chart" style="padding:10px 14px;height:140px;position:relative"></div>
+  </div>
   <div class="grid-2">
     <div class="card">
       <div class="card-hdr"><span>Recent findings</span><a class="link" onclick="goPage('findings')">View all →</a></div>
@@ -441,6 +554,7 @@ tr.clickable:hover td{background:var(--surface-2)}
     <div class="filter-chip" data-filter="flagged">Flagged</div>
     <div class="filter-chip" data-filter="milestone">Milestones</div>
     <div class="filter-chip" data-filter="cred">Creds found</div>
+    <select id="host-filter" style="margin-left:auto;padding:4px 8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-size:12px"><option value="">All hosts</option></select>
   </div>
   <div class="card"><table><thead><tr><th style="width:40px">#</th><th style="width:70px">Time</th><th>Command</th><th style="width:60px">Exit</th><th style="max-width:200px">Output</th><th>Tags</th><th style="width:30px"></th></tr></thead><tbody id="evidence-table"></tbody></table></div>
 </div>
@@ -528,6 +642,28 @@ tr.clickable:hover td{background:var(--surface-2)}
   <div class="card"><table><thead><tr><th style="width:70px">Time</th><th style="width:80px">Operator</th><th style="width:120px">Action</th><th>Target</th><th>Detail</th></tr></thead><tbody id="audit-table"></tbody></table></div>
 </div>
 
+<div id="pg-team" class="page">
+  <div class="page-hdr"><h2>Team Management</h2><button class="btn primary" onclick="showAddOperator()">+ Add member</button></div>
+  <div class="card"><table><thead><tr><th>Name</th><th>Role</th><th style="width:150px">Created</th><th style="width:150px">Last seen</th><th style="width:180px">Actions</th></tr></thead><tbody id="team-table"></tbody></table></div>
+</div>
+
+<div id="pg-settings" class="page">
+  <div class="page-hdr"><h2>Engagement Settings</h2></div>
+  <div class="card" style="max-width:700px">
+    <div style="display:grid;gap:12px">
+      <div><label style="font-weight:500;display:block;margin-bottom:4px">Engagement name</label><input id="set-name" class="input" style="width:100%"></div>
+      <div><label style="font-weight:500;display:block;margin-bottom:4px">Client</label><input id="set-client" class="input" style="width:100%"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><label style="font-weight:500;display:block;margin-bottom:4px">Start date</label><input id="set-start" type="date" class="input" style="width:100%"></div>
+        <div><label style="font-weight:500;display:block;margin-bottom:4px">End date</label><input id="set-end" type="date" class="input" style="width:100%"></div>
+      </div>
+      <div><label style="font-weight:500;display:block;margin-bottom:4px">Status</label><select id="set-status" class="input" style="width:100%"><option>active</option><option>paused</option><option>completed</option></select></div>
+      <div><label style="font-weight:500;display:block;margin-bottom:4px">Rules of Engagement (ROE)</label><textarea id="set-roe" class="input" rows="8" style="width:100%;font-family:monospace;font-size:13px" placeholder="Document rules of engagement, constraints, and boundaries..."></textarea></div>
+      <div style="text-align:right"><button class="btn primary" onclick="saveSettings()">Save settings</button></div>
+    </div>
+  </div>
+</div>
+
 </div>
 
 <!-- DETAIL PANEL -->
@@ -548,8 +684,46 @@ tr.clickable:hover td{background:var(--surface-2)}
 <div class="toast-container" id="toast-container"></div>
 
 <script>
-const KEY=localStorage.getItem('rt_api_key')||'';
-const H={'X-API-Key':KEY,'Content-Type':'application/json'};
+// Auth: session cookie handles authentication (no API key in JS)
+const H={'Content-Type':'application/json'};
+let currentUser={operator:'',role:'lead',permissions:{}};
+
+async function initAuth(){
+  try{
+    const r=await fetch('/api/auth/me',{credentials:'same-origin'});
+    if(!r.ok){location.href='/login';return false;}
+    currentUser=await r.json();
+    document.getElementById('user-name').textContent=currentUser.operator;
+    document.getElementById('user-role').textContent=currentUser.role;
+    applyRBAC();
+    return true;
+  }catch(e){location.href='/login';return false;}
+}
+
+function applyRBAC(){
+  const p=currentUser.permissions||{};
+  // Hide nav items user cannot access
+  document.querySelectorAll('.nav-item[data-page]').forEach(el=>{
+    const page=el.dataset.page;
+    const resourceMap={evidence:'evidence',findings:'findings',creds:'creds',scope:'scope',checklist:'checklist',sessions:'sessions',audit:'audit',attack:'findings',topology:'evidence',templates:'report',team:'operators',settings:'operators'};
+    const res=resourceMap[page]||'overview';
+    if(!p[res])el.classList.add('rbac-hidden');
+    else el.classList.remove('rbac-hidden');
+  });
+  // Hide action buttons for non-write roles
+  if(!p.findings||currentUser.role==='viewer'){
+    document.querySelectorAll('.rbac-write').forEach(el=>el.classList.add('rbac-hidden'));
+  }
+  if(currentUser.role!=='lead'){
+    document.querySelectorAll('.rbac-lead').forEach(el=>el.classList.add('rbac-hidden'));
+  }
+}
+
+async function logout(){
+  await fetch('/api/auth/logout',{method:'POST',credentials:'same-origin'});
+  location.href='/login';
+}
+
 function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function fmtTime(ts){try{const d=new Date(ts);return d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}catch(e){return ts||''}}
 function fmtDate(ts){try{return new Date(ts).toLocaleString('sv').replace('T',' ')}catch(e){return ts||''}}
@@ -559,9 +733,9 @@ function toggleTheme(){
   const cur=document.documentElement.getAttribute('data-theme');
   const next=cur==='light'?'dark':'light';
   document.documentElement.setAttribute('data-theme',next);
-  localStorage.setItem('rt_theme',next);
+  try{localStorage.setItem('rt_theme',next)}catch(e){}
 }
-(function(){const t=localStorage.getItem('rt_theme');if(t)document.documentElement.setAttribute('data-theme',t)})();
+(function(){try{const t=localStorage.getItem('rt_theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}})();
 
 // Navigation
 let currentPage='overview';
@@ -581,7 +755,7 @@ function goPage(p){document.querySelector('.nav-item[data-page="'+p+'"]').click(
 
 // API
 async function api(path,opts){
-  const r=await fetch(path,{headers:H,...(opts||{})});
+  const r=await fetch(path,{headers:H,credentials:'same-origin',...(opts||{})});
   if(r.status===401){location.href='/login';return null}
   if(!r.ok){const e=await r.json().catch(()=>({error:'request failed'}));throw new Error(e.error||'failed')}
   return r.json();
@@ -603,9 +777,24 @@ function toast(msg,type){
   setTimeout(()=>t.remove(),3500);
 }
 
+function criticalAlert(title,detail){
+  const c=document.getElementById('toast-container');
+  const t=document.createElement('div');
+  t.className='toast critical-alert';
+  t.style.cssText='border-left:4px solid #ff4444;background:#1a0505;color:#ff6b6b;padding:12px 16px;font-weight:600;animation:alertPulse 0.5s ease-out';
+  t.innerHTML='<div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">&#9888;</span><div><div>'+title+'</div>'+(detail?'<div style="font-weight:400;font-size:12px;opacity:0.8;margin-top:2px">'+detail+'</div>':'')+'</div></div>';
+  c.appendChild(t);
+  if(!document.getElementById('alert-pulse-style')){
+    const s=document.createElement('style');s.id='alert-pulse-style';
+    s.textContent='@keyframes alertPulse{0%{transform:translateX(100%)}50%{transform:translateX(-5px)}100%{transform:translateX(0)}} .critical-alert{box-shadow:0 0 20px rgba(255,68,68,0.3)!important}';
+    document.head.appendChild(s);
+  }
+  setTimeout(()=>t.remove(),8000);
+}
+
 // Loading
 async function loadPage(page){
-  const loaders={overview:loadOverview,evidence:loadEvidence,findings:loadFindings,creds:loadCreds,scope:loadScope,checklist:loadChecklist,sessions:loadSessions,attack:loadAttackMap,topology:loadTopology,templates:loadTemplates,audit:loadAudit};
+  const loaders={overview:loadOverview,evidence:loadEvidence,findings:loadFindings,creds:loadCreds,scope:loadScope,checklist:loadChecklist,sessions:loadSessions,attack:loadAttackMap,topology:loadTopology,templates:loadTemplates,audit:loadAudit,team:loadTeam,settings:loadSettings};
   if(loaders[page])try{await loaders[page]()}catch(e){console.error(e)}
 }
 
@@ -665,6 +854,35 @@ async function loadOverview(){
       '<span>'+esc(k)+': '+v.done+'/'+v.total+'</span>'
     ).join('');
   }
+
+  // Daily progress chart
+  const daily=await api('/api/overview/activity');
+  renderDailyChart(daily||[]);
+}
+
+function renderDailyChart(data){
+  const el=document.getElementById('daily-chart');
+  const label=document.getElementById('chart-label');
+  if(!data.length){el.innerHTML='<div style="color:var(--muted);text-align:center;padding:40px 0">No data yet</div>';return;}
+  label.textContent=data.length+' day'+(data.length>1?'s':'');
+  const max=Math.max(...data.map(d=>d.count));
+  const last14=data.slice(-14);
+  const w=el.clientWidth-20;
+  const h=120;
+  const barW=Math.max(8,Math.min(32,Math.floor(w/last14.length)-4));
+  const gap=Math.max(2,Math.floor((w-barW*last14.length)/(last14.length+1)));
+  let svg='<svg width="'+w+'" height="'+h+'" style="display:block;margin:0 auto">';
+  svg+='<line x1="0" y1="'+(h-18)+'" x2="'+w+'" y2="'+(h-18)+'" stroke="var(--border)" stroke-width="1"/>';
+  last14.forEach((d,i)=>{
+    const bh=max>0?Math.max(2,(d.count/max)*(h-30)):2;
+    const x=gap+(barW+gap)*i;
+    const y=h-18-bh;
+    svg+='<rect x="'+x+'" y="'+y+'" width="'+barW+'" height="'+bh+'" rx="2" fill="var(--accent)" opacity="0.85"><title>'+d.day+': '+d.count+' entries</title></rect>';
+    svg+='<text x="'+(x+barW/2)+'" y="'+(h-4)+'" text-anchor="middle" fill="var(--text-2)" font-size="9" font-variant-numeric="tabular-nums">'+d.day.slice(5)+'</text>';
+    if(d.count>0)svg+='<text x="'+(x+barW/2)+'" y="'+(y-3)+'" text-anchor="middle" fill="var(--text-2)" font-size="9" font-variant-numeric="tabular-nums">'+d.count+'</text>';
+  });
+  svg+='</svg>';
+  el.innerHTML=svg;
 }
 function statCard(val,label,color,sub){
   return '<div class="stat"><div class="stat-label">'+esc(label)+'</div><div class="stat-val"'+(color?' style="color:'+color+'"':'')+'>'+(val)+'</div>'+(sub?'<div class="stat-sub">'+esc(sub)+'</div>':'')+'</div>';
@@ -685,17 +903,35 @@ function renderEvidence(ev){
 }
 
 // Evidence filters
+function getHostFilter(){return document.getElementById('host-filter').value}
+function applyEvidenceFilters(){
+  const chip=document.querySelector('#evidence-filters .filter-chip.active');
+  const f=chip?chip.dataset.filter:'all';
+  let ev=cachedEvidence;
+  const hf=getHostFilter();
+  if(hf)ev=ev.filter(e=>e.Host===hf);
+  if(f==='flagged')ev=ev.filter(e=>(e.tags||[]).some(t=>t.startsWith('auto:')));
+  else if(f==='milestone')ev=ev.filter(e=>e.action==='milestone');
+  else if(f==='cred')ev=ev.filter(e=>(e.tags||[]).some(t=>t==='cred-found'||t==='credential'));
+  renderEvidence(ev);
+}
 document.getElementById('evidence-filters').addEventListener('click',e=>{
   const chip=e.target.closest('.filter-chip');
   if(!chip)return;
   document.querySelectorAll('#evidence-filters .filter-chip').forEach(c=>c.classList.remove('active'));
   chip.classList.add('active');
-  const f=chip.dataset.filter;
-  if(f==='all')renderEvidence(cachedEvidence);
-  else if(f==='flagged')renderEvidence(cachedEvidence.filter(e=>(e.tags||[]).some(t=>t.startsWith('auto:'))));
-  else if(f==='milestone')renderEvidence(cachedEvidence.filter(e=>e.action==='milestone'));
-  else if(f==='cred')renderEvidence(cachedEvidence.filter(e=>(e.tags||[]).some(t=>t==='cred-found'||t==='credential')));
+  applyEvidenceFilters();
 });
+document.getElementById('host-filter').addEventListener('change',applyEvidenceFilters);
+async function populateHostFilter(){
+  const scope=await api('/api/scope');
+  const sel=document.getElementById('host-filter');
+  sel.innerHTML='<option value="">All hosts</option>';
+  if(scope&&scope.length){
+    const hosts=[...new Set(scope.map(s=>s.Host))].sort();
+    hosts.forEach(h=>{sel.innerHTML+='<option value="'+esc(h)+'">'+esc(h)+'</option>';});
+  }
+}
 
 async function showEvidenceDetail(id){
   const ev=await api('/api/evidence/'+id);
@@ -706,6 +942,7 @@ async function showEvidenceDetail(id){
     '<div class="detail-field"><div class="lbl">Command</div><div class="val mono" style="word-break:break-all">'+esc(ev.Input)+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Exit code</div><div class="val">'+(ev.ExitCode===0?'<span style="color:var(--green)">0</span>':'<span style="color:var(--red)">'+ev.ExitCode+'</span>')+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Timestamp</div><div class="val">'+fmtDate(ev.Timestamp)+'</div></div>'+
+    '<div class="detail-field"><div class="lbl">Host</div><div class="val">'+(ev.Host?'<span class="tag">'+esc(ev.Host)+'</span>':'<span style="color:var(--muted)">—</span>')+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Tags</div><div class="val">'+((ev.Tags||[]).map(t=>tagSpan(t)).join(' ')||'<span style="color:var(--muted)">none</span>')+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Hash</div><div class="val mono" style="font-size:10px;color:var(--muted);word-break:break-all">'+esc(ev.Hash)+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Attachments ('+att.length+')</div><div class="val">'+renderAttachments(att)+'</div></div>'+
@@ -764,7 +1001,7 @@ async function showFindingDetail(id){
     '<div class="detail-field"><div class="lbl">Description</div><div class="val" style="color:var(--text-2)">'+(esc(f.Description)||'<em style="color:var(--muted)">No description</em>')+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Status</div><div class="val">'+statusSpan(f.Verified)+(f.VerifiedBy?' by '+esc(f.VerifiedBy):'')+(f.VerifiedAt?' at '+fmtDate(f.VerifiedAt):'')+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Verification note</div><div class="val" style="color:var(--text-2)">'+(esc(f.Notes)||'<em style="color:var(--muted)">—</em>')+'</div></div>'+
-    '<div class="detail-field"><div class="lbl">Linked evidence</div><div class="val">'+(f.EvidenceIDs&&f.EvidenceIDs.length?f.EvidenceIDs.map(id=>'<a class="link" onclick="showEvidenceDetail('+id+')">#'+id+'</a>').join(', '):'<em style="color:var(--muted)">none</em>')+'</div></div>'+
+    '<div class="detail-field"><div class="lbl">Linked evidence <button class="btn sm" style="margin-left:8px;padding:2px 8px;font-size:11px" onclick="showLinkEvidence('+f.ID+')">+ Link</button></div><div class="val" id="linked-ev-'+f.ID+'">'+(f.EvidenceIDs&&f.EvidenceIDs.length?f.EvidenceIDs.map(eid=>'<span style="display:inline-flex;align-items:center;gap:2px;margin-right:8px"><a class="link" onclick="showEvidenceDetail('+eid+')">#'+eid+'</a><button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:0 2px" title="Unlink" onclick="unlinkEvidence('+f.ID+','+eid+')">&times;</button></span>').join(''):'<em style="color:var(--muted)">none</em>')+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Screenshots & Attachments ('+att.length+')</div><div class="val">'+renderAttachments(att)+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Recommendation</div><div class="val" style="color:var(--text-2)">'+(esc(f.Recommendation)||'<em style="color:var(--muted)">None yet</em>')+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Created</div><div class="val">'+fmtDate(f.CreatedAt)+'</div></div>'+
@@ -825,6 +1062,27 @@ async function deleteFinding(id){
   if(!confirm('Delete finding #'+id+'?'))return;
   await del('/api/findings/'+id);
   closeDetail();loadFindings();toast('Finding deleted','success');
+}
+
+async function showLinkEvidence(findingId){
+  const evList=await api('/api/timeline');
+  if(!evList)return;
+  const options=evList.slice(0,100).map(e=>'<option value="'+e.id+'">#'+e.id+' '+esc((e.input||'').substring(0,60))+'</option>').join('');
+  showModal('Link evidence to finding #'+findingId,
+    '<label>Select evidence</label><select id="m-link-ev" multiple size="8" style="width:100%">'+options+'</select>'+
+    '<p style="color:var(--text-2);font-size:12px;margin-top:4px">Hold Ctrl/Cmd to select multiple items</p>',
+    async ()=>{
+      const sel=Array.from(document.getElementById('m-link-ev').selectedOptions).map(o=>parseInt(o.value));
+      if(!sel.length)return;
+      await api('/api/findings/'+findingId+'/link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({evidence_ids:sel})});
+      closeModal();showFindingDetail(findingId);toast('Evidence linked','success');
+    });
+}
+
+async function unlinkEvidence(findingId,evidenceId){
+  if(!confirm('Unlink evidence #'+evidenceId+' from finding #'+findingId+'?'))return;
+  await api('/api/findings/'+findingId+'/unlink',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({evidence_ids:[evidenceId]})});
+  showFindingDetail(findingId);toast('Evidence unlinked','success');
 }
 
 // ===== CREDENTIALS =====
@@ -1112,6 +1370,78 @@ document.getElementById('audit-filters').addEventListener('click',e=>{
   if(f==='all')renderAudit(cachedAudit);
   else renderAudit(cachedAudit.filter(x=>x.Action&&x.Action.includes(f)));
 });
+
+// ===== TEAM =====
+async function loadTeam(){
+  const ops=await api('/api/operators');
+  if(!ops)return;
+  const myID=currentUser.operator||'';
+  document.getElementById('team-table').innerHTML=(ops||[]).map(x=>{
+    const isMe=x.id===myID;
+    const roleSel='<select onchange="changeRole(\''+esc(x.id)+'\',this.value)"'+(isMe?' disabled':'')+'>'+
+      ['lead','operator','reviewer','viewer'].map(r=>'<option value="'+r+'"'+(r===x.role?' selected':'')+'>'+r+'</option>').join('')+'</select>';
+    const actions=isMe?'<span style="color:var(--muted);font-size:12px">(you)</span>':
+      '<button class="btn sm" onclick="rotateKey(\''+esc(x.id)+'\')">Rotate key</button> '+
+      '<button class="btn sm danger" onclick="removeOp(\''+esc(x.id)+'\')">Remove</button>';
+    return '<tr><td>'+esc(x.id)+(isMe?' <span class="tag">you</span>':'')+'</td><td>'+roleSel+'</td><td class="mono" style="font-variant-numeric:tabular-nums">'+fmtTime(x.created_at)+'</td><td class="mono" style="font-variant-numeric:tabular-nums">'+(x.last_seen_at?fmtTime(x.last_seen_at):'—')+'</td><td>'+actions+'</td></tr>';
+  }).join('')||'<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:20px">No team members</td></tr>';
+}
+function showAddOperator(){
+  showModal('Add Team Member',
+    '<label>Name</label><input id="m-opname" placeholder="alice">'+
+    '<label>Role</label><select id="m-oprole"><option value="operator">operator</option><option value="reviewer">reviewer</option><option value="viewer">viewer</option><option value="lead">lead</option></select>',
+    async()=>{
+      const r=await api('/api/operators',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:gv('m-opname'),role:gv('m-oprole')})});
+      if(r&&r.api_key){
+        closeModal();
+        showModal('API Key Created','<p>Save this key — it cannot be shown again:</p><div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin:12px 0;font-family:monospace;font-size:13px;word-break:break-all;color:var(--green)">'+esc(r.api_key)+'</div><button class="btn sm" onclick="navigator.clipboard.writeText(\''+esc(r.api_key)+'\');toast(\'Copied!\')">Copy</button>',()=>{closeModal();loadTeam()});
+      }
+    });
+}
+async function changeRole(opID,role){
+  if(!confirm('Change '+opID+' role to '+role+'?'))return loadTeam();
+  await api('/api/operators/'+opID,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:role})});
+  toast('Role updated');loadTeam();
+}
+async function rotateKey(opID){
+  if(!confirm('Rotate API key for '+opID+'? Their current key will stop working.'))return;
+  const r=await api('/api/operators/'+opID+'/rotate',{method:'POST'});
+  if(r&&r.api_key){
+    showModal('New API Key','<p>New key for <b>'+esc(opID)+'</b>:</p><div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin:12px 0;font-family:monospace;font-size:13px;word-break:break-all;color:var(--green)">'+esc(r.api_key)+'</div><button class="btn sm" onclick="navigator.clipboard.writeText(\''+esc(r.api_key)+'\');toast(\'Copied!\')">Copy</button>',()=>closeModal());
+  }
+}
+async function removeOp(opID){
+  if(!confirm('Remove '+opID+' from the team? This cannot be undone.'))return;
+  await api('/api/operators/'+opID,{method:'DELETE'});
+  toast('Member removed');loadTeam();
+}
+
+// ===== SETTINGS =====
+async function loadSettings(){
+  const s=await api('/api/settings');
+  if(!s)return;
+  document.getElementById('set-name').value=s.name||'';
+  document.getElementById('set-client').value=s.client||'';
+  document.getElementById('set-start').value=(s.start_date||'').substring(0,10);
+  document.getElementById('set-end').value=(s.end_date||'').substring(0,10);
+  document.getElementById('set-status').value=s.status||'active';
+  document.getElementById('set-roe').value=s.roe||'';
+}
+
+async function saveSettings(){
+  const body={
+    name:document.getElementById('set-name').value,
+    client:document.getElementById('set-client').value,
+    start_date:document.getElementById('set-start').value,
+    end_date:document.getElementById('set-end').value,
+    status:document.getElementById('set-status').value,
+    roe:document.getElementById('set-roe').value
+  };
+  if(!body.name){toast('Name is required','error');return}
+  await api('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  toast('Settings saved','success');
+  document.getElementById('eng-name').textContent=body.name;
+}
 
 // ===== DETAIL PANEL =====
 function openDetail(){document.getElementById('detail-panel').classList.add('open')}
@@ -1419,14 +1749,21 @@ function connectWS(){
   ws.onmessage=(e)=>{
     try{
       const d=JSON.parse(e.data);
+      if(d.type==='lock'){toast('Session expired — inactivity timeout','error');setTimeout(()=>{location.reload()},2000);return;}
       if(d.type==='presence'){updatePresence(d.operators);return;}
       if(d.type==='comment.new'){
         var ct=document.getElementById('comment-thread-'+d.finding_id);
         if(ct)loadComments(d.finding_id);
         return;
       }
-      if(d.type==='evidence')toast('New evidence: '+d.input,'');
-      else if(d.type&&d.type.startsWith('finding.'))toast('Finding '+d.type.split('.')[1]+' #'+d.id,'');
+      if(d.type==='evidence'){
+        if(d.priority==='critical'||d.priority==='high')criticalAlert('Critical Evidence','['+d.priority.toUpperCase()+'] '+d.input);
+        else toast('New evidence: '+d.input,'');
+      }
+      else if(d.type&&d.type.startsWith('finding.')){
+        if(d.type==='finding.create'&&(d.priority==='critical'||d.priority==='high'))criticalAlert('Critical Finding','['+d.priority.toUpperCase()+'] '+(d.title||'#'+d.id));
+        else toast('Finding '+d.type.split('.')[1]+' #'+d.id,'');
+      }
       else if(d.type&&d.type.startsWith('cred.'))toast('Credential '+d.type.split('.')[1],'');
       if(currentPage==='overview')loadOverview();
       else if(currentPage==='evidence'&&d.type==='evidence')loadEvidence();
@@ -1435,7 +1772,7 @@ function connectWS(){
     }catch(err){}
   };
 }
-connectWS();
+// connectWS() is called by initAuth after successful authentication
 
 // ===== KEYBOARD SHORTCUTS =====
 var shortcutPages=['overview','evidence','findings','creds','scope','checklist','sessions','attack','topology'];
@@ -1474,8 +1811,10 @@ function showShortcuts(){
 // Footer clock
 setInterval(()=>{document.getElementById('footer-time').textContent=new Date().toLocaleTimeString('en-GB')},1000);
 
-// Initial load
-loadOverview();
+// Initial load — authenticate first, then load dashboard
+(async()=>{
+  if(await initAuth()){loadOverview();connectWS();populateHostFilter();}
+})();
 </script></body></html>`)
 	return b.String()
 }

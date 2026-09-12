@@ -28,8 +28,16 @@ desktop.ini
 # Claude Code
 .claude/
 
+# Node (screenshot tooling)
+node_modules/
+package.json
+package-lock.json
+
 # Build output
 dist/
+
+# Reports
+report.html
 
 # Temp
 tmp/

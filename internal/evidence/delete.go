@@ -64,12 +64,12 @@ func Get(db *sql.DB, id int64) (*Evidence, error) {
 		        COALESCE(input,''), COALESCE(output,''), COALESCE(exit_code,0),
 		        COALESCE(duration_ms,0), COALESCE(cwd,''), COALESCE(tags,'[]'),
 		        COALESCE(priority,''), COALESCE(verified,''), COALESCE(mitre,'[]'),
-		        hash, prev_hash
+		        hash, prev_hash, COALESCE(host,'')
 		 FROM evidence WHERE id = ? AND is_deleted = 0`, id,
 	).Scan(&e.ID, &e.SessionID, &e.Timestamp, &e.Action,
 		&e.Input, &e.Output, &e.ExitCode, &e.DurationMs, &e.CWD,
 		&tagsJSON, &e.Priority, &e.Verified, &mitreJSON,
-		&e.Hash, &e.PrevHash)
+		&e.Hash, &e.PrevHash, &e.Host)
 	if err != nil {
 		return nil, err
 	}

@@ -2,9 +2,11 @@ package capture
 
 import (
 	"bufio"
+	"crypto/tls"
 	"database/sql"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
@@ -13,6 +15,7 @@ import (
 	"time"
 
 	"github.com/user/rt/internal/evidence"
+	"github.com/user/rt/internal/remote"
 )
 
 // Session holds the state for an active capture session.
@@ -98,8 +101,8 @@ func RunCommand(db *sql.DB, sessionID, engID, operator, command, cwd string) (*e
 		return nil, nil, fmt.Errorf("record evidence: %w", insertErr)
 	}
 
-	// Auto-flag
 	flagResult, _ := evidence.AutoFlag(db, ev, engID, operator)
+	syncToRemote(ev, operator)
 
 	return ev, flagResult, nil
 }
@@ -143,9 +146,38 @@ func ExecInteractive(db *sql.DB, sessionID, engID, operator, command string) err
 	if ev != nil {
 		flagResult, _ := evidence.AutoFlag(db, ev, engID, operator)
 		evidence.PrintAutoFlagResult(flagResult)
+		syncToRemote(ev, operator)
 	}
 
 	return nil // don't propagate command exit code as error
+}
+
+func syncToRemote(ev *evidence.Evidence, operator string) {
+	state, err := remote.LoadState()
+	if err != nil {
+		return
+	}
+	client := remote.NewClient(state.ServerURL, state.APIKey)
+	if state.Insecure {
+		client.HTTPClient.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+	}
+	resp, err := client.SubmitEvidence(remote.EvidenceReq{
+		SessionID:  state.SessionID,
+		Action:     ev.Action,
+		Input:      ev.Input,
+		Output:     ev.Output,
+		ExitCode:   ev.ExitCode,
+		DurationMs: ev.DurationMs,
+		CWD:        ev.CWD,
+		Operator:   operator,
+	})
+	if err != nil {
+		fmt.Printf("  [sync] Warning: remote sync failed: %v\n", err)
+		return
+	}
+	fmt.Printf("  [sync] Evidence #%d synced to server (remote #%d)\n", ev.ID, resp.ID)
 }
 
 func (s *Session) captureOutput(r io.Reader) {

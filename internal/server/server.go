@@ -25,28 +25,65 @@ import (
 )
 
 type Server struct {
-	DB      *sql.DB
-	EngID   string
-	EngName string
-	Listen  string
-	TLSCert string
-	TLSKey  string
-	Hub     *WSHub
+	DB          *sql.DB
+	EngID       string
+	EngName     string
+	Listen      string
+	TLSCert     string
+	TLSKey      string
+	Hub         *WSHub
+	Sessions    *SessionStore
+	LockTimeout time.Duration
+	lastActivity time.Time
+	activityMu   sync.Mutex
 }
 
 type contextKey string
 
 const operatorKey contextKey = "operator"
+const operatorRoleKey contextKey = "operator_role"
 
 func New(db *sql.DB, engID, engName, listen, tlsCert, tlsKey string) *Server {
 	return &Server{
-		DB:      db,
-		EngID:   engID,
-		EngName: engName,
-		Listen:  listen,
-		TLSCert: tlsCert,
-		TLSKey:  tlsKey,
-		Hub:     NewWSHub(),
+		DB:           db,
+		EngID:        engID,
+		EngName:      engName,
+		Listen:       listen,
+		TLSCert:      tlsCert,
+		TLSKey:       tlsKey,
+		Hub:          NewWSHub(),
+		Sessions:     NewSessionStore(8 * time.Hour),
+		LockTimeout:  30 * time.Minute,
+		lastActivity: time.Now(),
+	}
+}
+
+func (s *Server) touchActivity() {
+	s.activityMu.Lock()
+	s.lastActivity = time.Now()
+	s.activityMu.Unlock()
+}
+
+func (s *Server) idleDuration() time.Duration {
+	s.activityMu.Lock()
+	d := time.Since(s.lastActivity)
+	s.activityMu.Unlock()
+	return d
+}
+
+func (s *Server) autoLockLoop() {
+	if s.LockTimeout <= 0 {
+		return
+	}
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		if s.idleDuration() >= s.LockTimeout {
+			s.Sessions.ExpireAll()
+			s.Hub.Broadcast([]byte(`{"type":"lock","reason":"inactivity"}`))
+			fmt.Printf("  [auto-lock] Sessions expired after %s of inactivity\n", s.LockTimeout)
+			s.touchActivity()
+		}
 	}
 }
 
@@ -62,6 +99,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/creds", s.withAuth("creds", s.handleCreds))
 	mux.HandleFunc("/api/audit", s.withAuth("audit", s.handleAudit))
 	mux.HandleFunc("/api/operators", s.withAuth("operators", s.handleOperators))
+	mux.HandleFunc("/api/operators/", s.withAuth("operators", s.handleOperatorAction))
 	mux.HandleFunc("/api/report", s.withAuth("report", s.handleReport))
 	// API routes — write / detail
 	mux.HandleFunc("/api/findings/", s.withAuth("findings", s.handleFindingAction))
@@ -76,6 +114,14 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/scope/tested", s.withAuth("scope", s.handleScopeTested))
 	mux.HandleFunc("/api/checklist", s.withAuth("checklist", s.handleChecklist))
 	mux.HandleFunc("/api/checklist/toggle", s.withAuth("checklist", s.handleChecklistToggle))
+	mux.HandleFunc("/api/context", s.withAuth("overview", s.handleContext))
+	mux.HandleFunc("/api/overview/activity", s.withAuth("overview", s.handleDailyActivity))
+	mux.HandleFunc("/api/settings", s.withAuth("operators", s.handleSettings))
+	// Auth routes (no withAuth — these handle their own auth)
+	mux.HandleFunc("/api/auth/login", s.handleLogin)
+	mux.HandleFunc("/api/auth/logout", s.handleLogout)
+	mux.HandleFunc("/api/auth/me", s.handleMe)
+	mux.HandleFunc("/api/auth/setup", s.handleSetup)
 	// WebSocket
 	mux.HandleFunc("/ws/live", s.handleWS)
 
@@ -109,6 +155,7 @@ func (s *Server) Start() error {
 		fmt.Printf("  Press Ctrl+C to stop.\n\n")
 
 		go s.Hub.Run()
+		go s.autoLockLoop()
 		return srv.ListenAndServeTLS(certFile, keyFile)
 	}
 
@@ -120,9 +167,13 @@ func (s *Server) Start() error {
 	fmt.Printf("\n  RT Dashboard — http://%s\n", s.Listen)
 	fmt.Printf("  Engagement: %s\n", s.EngName)
 	fmt.Printf("  WARNING: No TLS — localhost only!\n\n")
+	if s.LockTimeout > 0 {
+		fmt.Printf("  Auto-lock: %s\n", s.LockTimeout)
+	}
 	fmt.Printf("  Press Ctrl+C to stop.\n\n")
 
 	go s.Hub.Run()
+	go s.autoLockLoop()
 	return srv.ListenAndServe()
 }
 
@@ -260,36 +311,65 @@ func clientIP(r *http.Request) string {
 	return host
 }
 
+func (s *Server) isLocalhost() bool {
+	host, _, _ := net.SplitHostPort(s.Listen)
+	return host == "" || host == "localhost" || host == "127.0.0.1"
+}
+
+func (s *Server) hasOperators() bool {
+	ops, err := operator.List(s.DB, s.EngID)
+	return err == nil && len(ops) > 0
+}
+
 func (s *Server) withAuth(resource string, handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Localhost without auth = solo mode (lead access)
-		host, _, _ := net.SplitHostPort(s.Listen)
-		if host == "" || host == "localhost" || host == "127.0.0.1" {
-			handler(w, r)
+		var opID, role string
+
+		// 1. Check session cookie (dashboard browser sessions)
+		if cookie, err := r.Cookie("rt_session"); err == nil {
+			if sess := s.Sessions.Get(cookie.Value); sess != nil {
+				opID = sess.OperatorID
+				role = sess.Role
+			}
+		}
+
+		// 2. Check API key header (remote agents + backward compat)
+		if opID == "" {
+			apiKey := r.Header.Get("X-API-Key")
+			if apiKey == "" {
+				apiKey = r.URL.Query().Get("api_key")
+			}
+			if apiKey != "" {
+				op, err := operator.Authenticate(s.DB, s.EngID, apiKey)
+				if err == nil {
+					opID = op.ID
+					role = op.Role
+				}
+			}
+		}
+
+		// 3. Localhost with no operators = solo mode (lead access, first-run)
+		if opID == "" && s.isLocalhost() && !s.hasOperators() {
+			opID = "local"
+			role = "lead"
+		}
+
+		if opID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			http.Error(w, `{"error":"authentication required"}`, http.StatusUnauthorized)
 			return
 		}
 
-		apiKey := r.Header.Get("X-API-Key")
-		if apiKey == "" {
-			apiKey = r.URL.Query().Get("api_key")
-		}
-		if apiKey == "" {
-			http.Error(w, `{"error":"API key required"}`, http.StatusUnauthorized)
+		s.touchActivity()
+
+		if !operator.HasPermission(role, resource) {
+			w.Header().Set("Content-Type", "application/json")
+			http.Error(w, fmt.Sprintf(`{"error":"role '%s' cannot access '%s'"}`, role, resource), http.StatusForbidden)
 			return
 		}
 
-		op, err := operator.Authenticate(s.DB, s.EngID, apiKey)
-		if err != nil {
-			http.Error(w, `{"error":"invalid API key"}`, http.StatusUnauthorized)
-			return
-		}
-
-		if !operator.HasPermission(op.Role, resource) {
-			http.Error(w, fmt.Sprintf(`{"error":"role '%s' cannot access '%s'"}`, op.Role, resource), http.StatusForbidden)
-			return
-		}
-
-		ctx := context.WithValue(r.Context(), operatorKey, op.ID)
+		ctx := context.WithValue(r.Context(), operatorKey, opID)
+		ctx = context.WithValue(ctx, operatorRoleKey, role)
 		handler(w, r.WithContext(ctx))
 	}
 }

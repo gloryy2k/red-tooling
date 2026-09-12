@@ -123,6 +123,38 @@ func (c *Client) postJSON(path string, body interface{}, result interface{}) err
 	return nil
 }
 
+type ContextResp struct {
+	Engagement map[string]interface{}   `json:"engagement"`
+	Scope      map[string]interface{}   `json:"scope"`
+	Findings   []map[string]interface{} `json:"findings"`
+	Checklist  map[string]interface{}   `json:"checklist"`
+}
+
+func (c *Client) GetContext() (*ContextResp, error) {
+	req, err := http.NewRequest("GET", c.BaseURL+"/api/context", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-API-Key", c.APIKey)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("cannot reach server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("server error (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var ctx ContextResp
+	if err := json.Unmarshal(body, &ctx); err != nil {
+		return nil, fmt.Errorf("decode context: %w", err)
+	}
+	return &ctx, nil
+}
+
 func (c *Client) Ping() error {
 	req, err := http.NewRequest("GET", c.BaseURL+"/api/overview", nil)
 	if err != nil {

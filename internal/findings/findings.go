@@ -241,6 +241,61 @@ func Update(db *sql.DB, id int64, title, description, priority string, mitre []s
 	return nil
 }
 
+// LinkEvidence adds evidence IDs to a finding (deduplicating).
+func LinkEvidence(db *sql.DB, id int64, evidenceIDs []int64, operator string) error {
+	f, err := Get(db, id)
+	if err != nil {
+		return err
+	}
+	existing := map[int64]bool{}
+	for _, eid := range f.EvidenceIDs {
+		existing[eid] = true
+	}
+	for _, eid := range evidenceIDs {
+		if !existing[eid] {
+			f.EvidenceIDs = append(f.EvidenceIDs, eid)
+			existing[eid] = true
+		}
+	}
+	evJSON, _ := json.Marshal(f.EvidenceIDs)
+	_, err = db.Exec(`UPDATE findings SET evidence_ids = ? WHERE id = ?`, string(evJSON), id)
+	if err != nil {
+		return fmt.Errorf("link evidence: %w", err)
+	}
+	audit.Log(db, operator, "finding.link_evidence", "finding", fmt.Sprintf("%d", id),
+		map[string]string{"evidence_ids": fmt.Sprintf("%v", evidenceIDs)})
+	return nil
+}
+
+// UnlinkEvidence removes evidence IDs from a finding.
+func UnlinkEvidence(db *sql.DB, id int64, evidenceIDs []int64, operator string) error {
+	f, err := Get(db, id)
+	if err != nil {
+		return err
+	}
+	remove := map[int64]bool{}
+	for _, eid := range evidenceIDs {
+		remove[eid] = true
+	}
+	var kept []int64
+	for _, eid := range f.EvidenceIDs {
+		if !remove[eid] {
+			kept = append(kept, eid)
+		}
+	}
+	if kept == nil {
+		kept = []int64{}
+	}
+	evJSON, _ := json.Marshal(kept)
+	_, err = db.Exec(`UPDATE findings SET evidence_ids = ? WHERE id = ?`, string(evJSON), id)
+	if err != nil {
+		return fmt.Errorf("unlink evidence: %w", err)
+	}
+	audit.Log(db, operator, "finding.unlink_evidence", "finding", fmt.Sprintf("%d", id),
+		map[string]string{"evidence_ids": fmt.Sprintf("%v", evidenceIDs)})
+	return nil
+}
+
 // Count returns total findings for an engagement.
 func Count(db *sql.DB, engID string) int {
 	var n int

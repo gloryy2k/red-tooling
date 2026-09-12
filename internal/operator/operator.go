@@ -31,20 +31,21 @@ var RolePermissions = map[string]map[string]bool{
 		"overview": true, "live": true, "findings": true, "timeline": true,
 		"creds": true, "audit": true, "sessions": true, "report": true,
 		"operators": true, "evidence": true, "verify": true, "export": true,
+		"scope": true, "checklist": true,
 	},
 	"operator": {
 		"overview": true, "live": true, "findings": true, "timeline": true,
 		"creds": true, "sessions": true, "evidence": true, "report": true,
-		"export": true,
+		"export": true, "scope": true, "checklist": true,
 	},
 	"reviewer": {
 		"overview": true, "findings": true, "timeline": true,
 		"sessions": true, "evidence": true, "report": true, "verify": true,
-		"export": true,
+		"export": true, "scope": true, "checklist": true,
 	},
 	"viewer": {
 		"overview": true, "findings": true, "timeline": true,
-		"sessions": true, "report": true,
+		"sessions": true, "report": true, "checklist": true,
 	},
 }
 
@@ -161,6 +162,38 @@ func RotateKey(db *sql.DB, engID, operatorID, creator string) (string, error) {
 
 	audit.Log(db, creator, "operator.rotate_key", "operator", operatorID, nil)
 	return apiKey, nil
+}
+
+// Remove deletes an operator.
+func Remove(db *sql.DB, engID, operatorID, creator string) error {
+	res, err := db.Exec(`DELETE FROM operators WHERE id = ? AND engagement_id = ?`, operatorID, engID)
+	if err != nil {
+		return err
+	}
+	affected, _ := res.RowsAffected()
+	if affected == 0 {
+		return fmt.Errorf("operator %q not found", operatorID)
+	}
+	audit.Log(db, creator, "operator.remove", "operator", operatorID, nil)
+	return nil
+}
+
+// UpdateRole changes an operator's role.
+func UpdateRole(db *sql.DB, engID, operatorID, newRole, creator string) error {
+	if !validRoles[newRole] {
+		return fmt.Errorf("invalid role %q", newRole)
+	}
+	res, err := db.Exec(`UPDATE operators SET role = ? WHERE id = ? AND engagement_id = ?`, newRole, operatorID, engID)
+	if err != nil {
+		return err
+	}
+	affected, _ := res.RowsAffected()
+	if affected == 0 {
+		return fmt.Errorf("operator %q not found", operatorID)
+	}
+	audit.Log(db, creator, "operator.update_role", "operator", operatorID,
+		map[string]string{"role": newRole})
+	return nil
 }
 
 // Get returns a single operator.

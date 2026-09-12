@@ -27,6 +27,7 @@ type Evidence struct {
 	Mitre      []string
 	Hash       string
 	PrevHash   string
+	Host       string
 }
 
 const genesisHash = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
@@ -45,10 +46,12 @@ func Insert(db *sql.DB, sessionID, action, input, output string, exitCode int, d
 
 	hash := crypto.HashEvidence(now, action, input, output, exitCode, tagsJSON, operator)
 
+	host := detectHost(db, sessionID, input)
+
 	res, err := db.Exec(
-		`INSERT INTO evidence (session_id, timestamp, action, input, output, exit_code, duration_ms, cwd, tags, priority, hash, prev_hash)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		sessionID, now, action, input, output, exitCode, durationMs, cwd, tagsJSON, priority, hash, prevHash,
+		`INSERT INTO evidence (session_id, timestamp, action, input, output, exit_code, duration_ms, cwd, tags, priority, hash, prev_hash, host)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		sessionID, now, action, input, output, exitCode, durationMs, cwd, tagsJSON, priority, hash, prevHash, host,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert evidence: %w", err)
@@ -75,7 +78,33 @@ func Insert(db *sql.DB, sessionID, action, input, output string, exitCode int, d
 		Priority:   priority,
 		Hash:       hash,
 		PrevHash:   prevHash,
+		Host:       host,
 	}, nil
+}
+
+// detectHost scans the command input for scope hosts.
+func detectHost(db *sql.DB, sessionID, input string) string {
+	if input == "" {
+		return ""
+	}
+	var engID string
+	err := db.QueryRow(`SELECT engagement_id FROM sessions WHERE id = ?`, sessionID).Scan(&engID)
+	if err != nil {
+		return ""
+	}
+	rows, err := db.Query(`SELECT host FROM scope_hosts WHERE engagement_id = ?`, engID)
+	if err != nil {
+		return ""
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var h string
+		rows.Scan(&h)
+		if h != "" && strings.Contains(input, h) {
+			return h
+		}
+	}
+	return ""
 }
 
 func getLastHash(db *sql.DB, sessionID string) string {
@@ -99,7 +128,7 @@ func Timeline(db *sql.DB, engID string, limit int) ([]Evidence, error) {
 		        COALESCE(e.input,''), COALESCE(e.output,''), COALESCE(e.exit_code,0),
 		        COALESCE(e.duration_ms,0), COALESCE(e.cwd,''), COALESCE(e.tags,'[]'),
 		        COALESCE(e.priority,''), COALESCE(e.verified,''), COALESCE(e.mitre,'[]'),
-		        e.hash, e.prev_hash
+		        e.hash, e.prev_hash, COALESCE(e.host,'')
 		 FROM evidence e
 		 JOIN sessions s ON e.session_id = s.id
 		 WHERE s.engagement_id = ? AND e.is_deleted = 0
@@ -117,7 +146,7 @@ func Timeline(db *sql.DB, engID string, limit int) ([]Evidence, error) {
 		if err := rows.Scan(&e.ID, &e.SessionID, &e.Timestamp, &e.Action,
 			&e.Input, &e.Output, &e.ExitCode, &e.DurationMs, &e.CWD,
 			&tagsJSON, &e.Priority, &e.Verified, &mitreJSON,
-			&e.Hash, &e.PrevHash); err != nil {
+			&e.Hash, &e.PrevHash, &e.Host); err != nil {
 			return nil, err
 		}
 		json.Unmarshal([]byte(tagsJSON), &e.Tags)

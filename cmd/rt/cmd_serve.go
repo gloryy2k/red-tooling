@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	operatorPkg "github.com/user/rt/internal/operator"
@@ -23,7 +24,12 @@ var serveCmd = &cobra.Command{
 		tlsCert, _ := cmd.Flags().GetString("tls-cert")
 		tlsKey, _ := cmd.Flags().GetString("tls-key")
 
+		lockTimeout, _ := cmd.Flags().GetDuration("lock-timeout")
+
 		srv := server.New(database, engID, engName, listen, tlsCert, tlsKey)
+		if lockTimeout > 0 {
+			srv.LockTimeout = lockTimeout
+		}
 		return srv.Start()
 	},
 }
@@ -32,6 +38,7 @@ func init() {
 	serveCmd.Flags().String("listen", "localhost:8080", "Listen address (host:port)")
 	serveCmd.Flags().String("tls-cert", "", "TLS certificate file")
 	serveCmd.Flags().String("tls-key", "", "TLS private key file")
+	serveCmd.Flags().Duration("lock-timeout", 30*time.Minute, "Auto-lock sessions after inactivity (0 to disable)")
 }
 
 var operatorAddCmd = &cobra.Command{

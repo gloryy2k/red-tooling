@@ -13,6 +13,7 @@ import (
 	"github.com/user/rt/internal/audit"
 	"github.com/user/rt/internal/checklist"
 	"github.com/user/rt/internal/credentials"
+	"github.com/user/rt/internal/engagement"
 	"github.com/user/rt/internal/evidence"
 	"github.com/user/rt/internal/findings"
 	"github.com/user/rt/internal/operator"
@@ -58,6 +59,31 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 	jsonResp(w, overview)
 }
 
+func (s *Server) handleDailyActivity(w http.ResponseWriter, r *http.Request) {
+	rows, err := s.DB.Query(`
+		SELECT date(timestamp) AS day, COUNT(*) AS cnt
+		FROM evidence e
+		JOIN sessions ss ON e.session_id = ss.id
+		WHERE ss.engagement_id = ? AND e.is_deleted = 0
+		GROUP BY day ORDER BY day`, s.EngID)
+	if err != nil {
+		jsonErr(w, err.Error(), 500)
+		return
+	}
+	defer rows.Close()
+	type dayCount struct {
+		Day   string `json:"day"`
+		Count int    `json:"count"`
+	}
+	var data []dayCount
+	for rows.Next() {
+		var d dayCount
+		rows.Scan(&d.Day, &d.Count)
+		data = append(data, d)
+	}
+	jsonResp(w, data)
+}
+
 func (s *Server) handleFindings(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		s.handleCreateFinding(w, r)
@@ -93,6 +119,13 @@ func (s *Server) handleCreateFinding(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, err.Error(), 500)
 		return
 	}
+	s.Hub.Broadcast(map[string]interface{}{
+		"type":     "finding.create",
+		"id":       f.ID,
+		"title":    f.Title,
+		"priority": f.Priority,
+		"operator": op,
+	})
 	jsonResp(w, f)
 }
 
@@ -179,6 +212,36 @@ func (s *Server) handleFindingAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.Hub.Broadcast(map[string]interface{}{"type": "finding.verify", "id": id, "status": req.Status, "operator": op})
+		jsonResp(w, map[string]string{"status": "ok"})
+
+	case "link":
+		var req struct {
+			EvidenceIDs []int64 `json:"evidence_ids"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonErr(w, "invalid JSON", 400)
+			return
+		}
+		if err := findings.LinkEvidence(s.DB, id, req.EvidenceIDs, op); err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		s.Hub.Broadcast(map[string]interface{}{"type": "finding.link", "id": id, "evidence_ids": req.EvidenceIDs, "operator": op})
+		jsonResp(w, map[string]string{"status": "ok"})
+
+	case "unlink":
+		var req struct {
+			EvidenceIDs []int64 `json:"evidence_ids"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonErr(w, "invalid JSON", 400)
+			return
+		}
+		if err := findings.UnlinkEvidence(s.DB, id, req.EvidenceIDs, op); err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		s.Hub.Broadcast(map[string]interface{}{"type": "finding.unlink", "id": id, "evidence_ids": req.EvidenceIDs, "operator": op})
 		jsonResp(w, map[string]string{"status": "ok"})
 
 	case "recommend":
@@ -273,7 +336,7 @@ func (s *Server) handleSubmitEvidence(w http.ResponseWriter, r *http.Request) {
 		AutoFlag:  flagResult,
 	}
 
-	s.Hub.Broadcast(map[string]interface{}{
+	evBroadcast := map[string]interface{}{
 		"type":      "evidence",
 		"id":        ev.ID,
 		"action":    ev.Action,
@@ -281,7 +344,14 @@ func (s *Server) handleSubmitEvidence(w http.ResponseWriter, r *http.Request) {
 		"exit_code": ev.ExitCode,
 		"timestamp": ev.Timestamp,
 		"operator":  op,
-	})
+	}
+	if ev.Priority != "" {
+		evBroadcast["priority"] = ev.Priority
+	}
+	if len(ev.Tags) > 0 {
+		evBroadcast["tags"] = ev.Tags
+	}
+	s.Hub.Broadcast(evBroadcast)
 
 	w.WriteHeader(201)
 	jsonResp(w, resp)
@@ -531,6 +601,24 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleOperators(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		var req struct {
+			Name string `json:"name"`
+			Role string `json:"role"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" || req.Role == "" {
+			jsonErr(w, "name and role required", 400)
+			return
+		}
+		op, err := operator.Add(s.DB, s.EngID, req.Name, req.Role, operatorFromCtx(r))
+		if err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		jsonResp(w, map[string]string{"id": op.ID, "role": op.Role, "api_key": op.APIKey})
+		return
+	}
+
 	ops, err := operator.List(s.DB, s.EngID)
 	if err != nil {
 		jsonErr(w, err.Error(), 500)
@@ -552,6 +640,69 @@ func (s *Server) handleOperators(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	jsonResp(w, safe)
+}
+
+func (s *Server) handleOperatorAction(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/operators/"), "/")
+	opID := parts[0]
+	if opID == "" {
+		jsonErr(w, "operator ID required", 400)
+		return
+	}
+	action := ""
+	if len(parts) > 1 {
+		action = parts[1]
+	}
+
+	caller := operatorFromCtx(r)
+
+	if action == "rotate" && r.Method == "POST" {
+		newKey, err := operator.RotateKey(s.DB, s.EngID, opID, caller)
+		if err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		s.Sessions.DeleteByOperator(opID)
+		jsonResp(w, map[string]string{"api_key": newKey})
+		return
+	}
+
+	if r.Method == "PUT" {
+		var req struct {
+			Role string `json:"role"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Role == "" {
+			jsonErr(w, "role required", 400)
+			return
+		}
+		if opID == caller {
+			jsonErr(w, "cannot change your own role", 403)
+			return
+		}
+		if err := operator.UpdateRole(s.DB, s.EngID, opID, req.Role, caller); err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		s.Sessions.DeleteByOperator(opID)
+		jsonResp(w, map[string]string{"ok": "true"})
+		return
+	}
+
+	if r.Method == "DELETE" {
+		if opID == caller {
+			jsonErr(w, "cannot remove yourself", 403)
+			return
+		}
+		if err := operator.Remove(s.DB, s.EngID, opID, caller); err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		s.Sessions.DeleteByOperator(opID)
+		jsonResp(w, map[string]string{"ok": "true"})
+		return
+	}
+
+	jsonErr(w, "method not allowed", 405)
 }
 
 func (s *Server) handleScope(w http.ResponseWriter, r *http.Request) {
@@ -945,6 +1096,116 @@ func (s *Server) handleTemplateAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonErr(w, "method not allowed", 405)
+}
+
+func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		eng, err := engagement.Get(s.DB, s.EngID)
+		if err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		roe := engagement.GetROE(s.DB, s.EngID)
+		jsonResp(w, map[string]interface{}{
+			"id":         eng.ID,
+			"name":       eng.Name,
+			"client":     eng.Client,
+			"status":     eng.Status,
+			"start_date": eng.StartDate,
+			"end_date":   eng.EndDate,
+			"roe":        roe,
+		})
+		return
+	}
+
+	if r.Method == "PUT" {
+		var req struct {
+			Name      string `json:"name"`
+			Client    string `json:"client"`
+			StartDate string `json:"start_date"`
+			EndDate   string `json:"end_date"`
+			Status    string `json:"status"`
+			ROE       string `json:"roe"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonErr(w, "invalid JSON", 400)
+			return
+		}
+		op := operatorFromCtx(r)
+		if req.Name != "" {
+			if err := engagement.Update(s.DB, s.EngID, req.Name, req.Client, req.StartDate, req.EndDate, req.Status, op); err != nil {
+				jsonErr(w, err.Error(), 500)
+				return
+			}
+			s.EngName = req.Name
+		}
+		if err := engagement.SetROE(s.DB, s.EngID, req.ROE, op); err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		jsonResp(w, map[string]string{"status": "ok"})
+		return
+	}
+
+	jsonErr(w, "method not allowed", 405)
+}
+
+func (s *Server) handleContext(w http.ResponseWriter, r *http.Request) {
+	eng, err := engagement.Get(s.DB, s.EngID)
+	if err != nil {
+		jsonErr(w, err.Error(), 500)
+		return
+	}
+
+	hosts, _ := scope.List(s.DB, s.EngID)
+	scopeTotal, scopeTested := scope.Stats(s.DB, s.EngID)
+
+	findingsList, _ := findings.List(s.DB, s.EngID)
+	findingSummary := make([]map[string]interface{}, 0, len(findingsList))
+	for _, f := range findingsList {
+		findingSummary = append(findingSummary, map[string]interface{}{
+			"id":       f.ID,
+			"title":    f.Title,
+			"priority": f.Priority,
+			"status":   f.Verified,
+			"mitre":    f.Mitre,
+		})
+	}
+
+	checkTotal, checkDone := checklist.Stats(s.DB, s.EngID)
+	items, _ := checklist.List(s.DB, s.EngID)
+	checkItems := make([]map[string]interface{}, 0, len(items))
+	for _, it := range items {
+		checkItems = append(checkItems, map[string]interface{}{
+			"id":       it.ID,
+			"category": it.Category,
+			"item":     it.Item,
+			"checked":  it.Done,
+		})
+	}
+
+	ctx := map[string]interface{}{
+		"engagement": map[string]interface{}{
+			"id":         eng.ID,
+			"name":       eng.Name,
+			"client":     eng.Client,
+			"status":     eng.Status,
+			"start_date": eng.StartDate,
+			"end_date":   eng.EndDate,
+		},
+		"scope": map[string]interface{}{
+			"hosts":  hosts,
+			"total":  scopeTotal,
+			"tested": scopeTested,
+		},
+		"findings": findingSummary,
+		"checklist": map[string]interface{}{
+			"items": checkItems,
+			"total": checkTotal,
+			"done":  checkDone,
+		},
+	}
+	jsonResp(w, ctx)
 }
 
 func operatorFromCtx(r *http.Request) string {

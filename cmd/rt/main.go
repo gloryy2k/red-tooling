@@ -82,6 +82,9 @@ func main() {
 		wipeCmd,
 		remoteExecCmd,
 		remoteSessionCmd,
+		joinCmd,
+		leaveCmd,
+		syncCmd,
 		initWorkspaceCmd,
 		removeWorkspaceCmd,
 	)
