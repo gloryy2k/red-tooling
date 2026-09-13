@@ -24,13 +24,23 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	op, err := operator.Authenticate(s.DB, s.EngID, req.APIKey)
-	if err != nil {
-		http.Error(w, `{"error":"invalid API key"}`, http.StatusUnauthorized)
-		return
+	var opID, role string
+
+	// Check setup token first (printed on server start, grants lead access)
+	if s.SetupToken != "" && req.APIKey == s.SetupToken {
+		opID = "admin"
+		role = "lead"
+	} else {
+		op, err := operator.Authenticate(s.DB, s.EngID, req.APIKey)
+		if err != nil {
+			http.Error(w, `{"error":"invalid API key"}`, http.StatusUnauthorized)
+			return
+		}
+		opID = op.ID
+		role = op.Role
 	}
 
-	sess, err := s.Sessions.Create(op.ID, op.Role)
+	sess, err := s.Sessions.Create(opID, role)
 	if err != nil {
 		http.Error(w, `{"error":"session creation failed"}`, http.StatusInternalServerError)
 		return
@@ -46,12 +56,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   int(s.Sessions.ttl.Seconds()),
 	})
 
-	audit.Log(s.DB, op.ID, "auth.login", "session", sess.Token[:16]+"...", nil)
+	audit.Log(s.DB, opID, "auth.login", "session", sess.Token[:16]+"...", nil)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"operator": op.ID,
-		"role":     op.Role,
+		"operator": opID,
+		"role":     role,
 	})
 }
 

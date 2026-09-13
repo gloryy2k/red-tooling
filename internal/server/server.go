@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"database/sql"
+	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -33,7 +34,8 @@ type Server struct {
 	TLSKey      string
 	Hub         *WSHub
 	Sessions    *SessionStore
-	LockTimeout time.Duration
+	LockTimeout  time.Duration
+	SetupToken   string
 	lastActivity time.Time
 	activityMu   sync.Mutex
 }
@@ -42,6 +44,12 @@ type contextKey string
 
 const operatorKey contextKey = "operator"
 const operatorRoleKey contextKey = "operator_role"
+
+func generateSetupToken() string {
+	b := make([]byte, 24)
+	rand.Read(b)
+	return "rt_setup_" + base64.RawURLEncoding.EncodeToString(b)
+}
 
 func New(db *sql.DB, engID, engName, listen, tlsCert, tlsKey string) *Server {
 	return &Server{
@@ -54,6 +62,7 @@ func New(db *sql.DB, engID, engName, listen, tlsCert, tlsKey string) *Server {
 		Hub:          NewWSHub(),
 		Sessions:     NewSessionStore(8 * time.Hour),
 		LockTimeout:  30 * time.Minute,
+		SetupToken:   generateSetupToken(),
 		lastActivity: time.Now(),
 	}
 }
@@ -150,8 +159,12 @@ func (s *Server) Start() error {
 
 		fmt.Printf("\n  RT Dashboard — https://%s\n", s.Listen)
 		fmt.Printf("  Engagement: %s\n", s.EngName)
-		fmt.Printf("  TLS: %s\n\n", certFile)
-		fmt.Printf("  Use 'rt operator list' to see API keys.\n")
+		fmt.Printf("  TLS: %s\n", certFile)
+		if s.LockTimeout > 0 {
+			fmt.Printf("  Auto-lock: %s\n", s.LockTimeout)
+		}
+		fmt.Printf("\n  Setup Token: %s\n", s.SetupToken)
+		fmt.Printf("  (paste this into the login page to sign in as lead)\n\n")
 		fmt.Printf("  Press Ctrl+C to stop.\n\n")
 
 		go s.Hub.Run()
@@ -166,10 +179,12 @@ func (s *Server) Start() error {
 
 	fmt.Printf("\n  RT Dashboard — http://%s\n", s.Listen)
 	fmt.Printf("  Engagement: %s\n", s.EngName)
-	fmt.Printf("  WARNING: No TLS — localhost only!\n\n")
+	fmt.Printf("  WARNING: No TLS — localhost only!\n")
 	if s.LockTimeout > 0 {
 		fmt.Printf("  Auto-lock: %s\n", s.LockTimeout)
 	}
+	fmt.Printf("\n  Setup Token: %s\n", s.SetupToken)
+	fmt.Printf("  (paste this into the login page to sign in as lead)\n\n")
 	fmt.Printf("  Press Ctrl+C to stop.\n\n")
 
 	go s.Hub.Run()
@@ -340,10 +355,15 @@ func (s *Server) withAuth(resource string, handler http.HandlerFunc) http.Handle
 				apiKey = r.URL.Query().Get("api_key")
 			}
 			if apiKey != "" {
-				op, err := operator.Authenticate(s.DB, s.EngID, apiKey)
-				if err == nil {
-					opID = op.ID
-					role = op.Role
+				if s.SetupToken != "" && apiKey == s.SetupToken {
+					opID = "admin"
+					role = "lead"
+				} else {
+					op, err := operator.Authenticate(s.DB, s.EngID, apiKey)
+					if err == nil {
+						opID = op.ID
+						role = op.Role
+					}
 				}
 			}
 		}

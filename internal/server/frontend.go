@@ -76,9 +76,9 @@ func loginPage() string {
 <style>` + authPageStyles() + `</style></head><body>
 <div class="box">
 <h1>RT Dashboard</h1>
-<p>Enter your API key to sign in</p>
-<label>API Key</label>
-<input type="password" id="key" placeholder="rt_key_..." autofocus>
+<p>Enter your API key or setup token to sign in</p>
+<label>API Key / Setup Token</label>
+<input type="password" id="key" placeholder="rt_key_... or rt_setup_..." autofocus>
 <button onclick="login()" id="btn">Sign in</button>
 <div class="err" id="err"></div>
 </div>
