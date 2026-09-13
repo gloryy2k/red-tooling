@@ -15,8 +15,9 @@
 - **Export formats** — Ghostwriter JSON, CSV, MITRE ATT&CK Navigator layer, full JSON
 - **Web dashboard** — real-time SPA with WebSocket live feed, MITRE ATT&CK map, network topology
 - **RBAC** — 4 roles (lead/operator/reviewer/viewer) with API key auth
+- **Setup token** — auto-generated token printed on server start for instant lead access
+- **Per-page docs** — built-in documentation modal on every dashboard page
 - **AI agent integration** — auto-generates CLAUDE.md + pentest skills per engagement
-- **Playbook runner** — YAML playbooks with step dependencies and conditions
 - **Tool import** — nmap XML, Nuclei JSON, CSV, raw text
 - **Scope tracking** — host management with tested/untested status
 - **PTES checklist** — 27-item template with check-off tracking
@@ -162,14 +163,6 @@ rt import nuclei-output.json
 rt import ports.csv
 ```
 
-### Playbooks
-
-```bash
-rt agent-run recon --target 10.10.10.0/24
-rt agent-exec "nmap -sV 10.10.10.1"
-rt agent-list               # list available playbooks
-```
-
 ## Architecture
 
 ```
@@ -202,7 +195,6 @@ rt agent-list               # list available playbooks
 ```
 cmd/rt/             CLI commands (one file per command group)
 internal/
-  agent/            playbook runner + cost tracking
   attachments/      file BLOB storage
   audit/            immutable audit log
   capture/          command execution + evidence recording
@@ -224,7 +216,6 @@ internal/
   search/           evidence text search + read-only SQL
   server/           web dashboard + central server API + WebSocket
   session/          session management
-playbooks/          YAML playbook templates
 ```
 
 ## Commands
@@ -252,7 +243,6 @@ playbooks/          YAML playbook templates
 | `rt export` | Export (ghostwriter/csv/json/mitre) |
 | `rt serve` | Start web dashboard |
 | `rt operator-add` / `rt operator-list` | Manage RBAC operators |
-| `rt agent-run` / `rt agent-exec` / `rt agent-script` | Run playbooks/commands |
 | `rt remote-exec` | Execute command + submit evidence to central server |
 | `rt remote-session` | Start/stop remote session on central server |
 | `rt scope` / `rt scope-list` / `rt scope-tested` / `rt scope-untested` | Scope management |
@@ -265,7 +255,6 @@ playbooks/          YAML playbook templates
 | `rt verify-chain` | Verify evidence hash chain integrity |
 | `rt audit` | View audit log |
 | `rt status` | Show engagement status |
-| `rt cost` | Show AI agent cost tracking |
 | `rt init-workspace` | Generate agent CLAUDE.md + skills |
 | `rt wipe` | Permanently delete engagement |
 
