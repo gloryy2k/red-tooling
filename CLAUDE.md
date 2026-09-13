@@ -51,7 +51,6 @@ rt remote-session stop --session <ID> --server ...   # stop remote session
 ```
 cmd/rt/           — CLI commands (one file per command group)
 internal/
-  agent/          — playbook runner + cost tracking
   attachments/    — file BLOB storage
   audit/          — immutable audit log
   capture/        — command execution + evidence recording
@@ -73,7 +72,6 @@ internal/
   session/        — session management
   checklist/      — PTES/custom checklist management
   importer/       — nmap XML, nuclei JSON, CSV, text import
-playbooks/        — YAML playbook templates
 ```
 
 ## Build
