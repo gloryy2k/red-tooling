@@ -310,6 +310,27 @@ tr.clickable:hover td{background:var(--surface-2)}
 .modal textarea{min-height:80px;resize:vertical;font-family:inherit}
 .modal-actions{margin-top:1.25rem;display:flex;justify-content:flex-end;gap:8px}
 
+/* === DOCS MODAL === */
+.doc-modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:0;width:640px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
+.doc-modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
+.doc-modal-hdr h3{font-size:15px;font-weight:600;margin:0}
+.doc-modal-close{background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;border-radius:4px;display:flex}
+.doc-modal-close:hover{color:var(--text);background:var(--surface-2)}
+.doc-modal-body{padding:20px;overflow-y:auto;font-size:13px;line-height:1.7;color:var(--text-2)}
+.doc-modal-body h4{font-size:13px;font-weight:600;color:var(--text);margin:16px 0 6px;text-transform:uppercase;letter-spacing:.03em}
+.doc-modal-body h4:first-child{margin-top:0}
+.doc-modal-body ul{margin:4px 0 12px 0;padding-left:20px}
+.doc-modal-body li{margin-bottom:4px}
+.doc-modal-body li strong{color:var(--text)}
+.doc-modal-body code{font-family:'Fira Code',monospace;font-size:12px;background:var(--surface-2);padding:1px 5px;border-radius:3px;color:var(--accent)}
+.doc-modal-body .doc-cli{margin:8px 0 12px;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-family:'Fira Code',monospace;font-size:11px;line-height:1.8;color:var(--text-2);overflow-x:auto}
+.doc-modal-body .doc-table{width:100%;border-collapse:collapse;margin:8px 0 12px;font-size:12px}
+.doc-modal-body .doc-table th,.doc-modal-body .doc-table td{text-align:left;padding:6px 10px;border:1px solid var(--border)}
+.doc-modal-body .doc-table th{background:var(--surface-2);font-weight:600;color:var(--text)}
+.doc-modal-body .doc-tip{margin:8px 0;padding:8px 12px;background:var(--accent-bg);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;font-size:12px;color:var(--text-2)}
+.btn-docs{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:transparent;border:1px solid var(--border);border-radius:var(--radius);color:var(--muted);font-size:11px;cursor:pointer;transition:all .15s;margin-left:8px}
+.btn-docs:hover{background:var(--surface-2);color:var(--text);border-color:var(--border-hover)}
+
 /* === LIGHTBOX === */
 .lightbox-bg{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.85);z-index:300;display:flex;align-items:center;justify-content:center;cursor:zoom-out}
 .lightbox-bg img{max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5)}
@@ -522,6 +543,7 @@ tr.clickable:hover td{background:var(--surface-2)}
 
 <!-- ===== OVERVIEW ===== -->
 <div id="pg-overview" class="page active">
+  <div class="page-hdr"><h2>Overview</h2><button class="btn-docs" onclick="showDocs('overview')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Docs</button></div>
   <div class="stats" id="overview-stats"></div>
   <div class="card">
     <div class="card-hdr"><span>Daily progress</span><span id="chart-label" style="font-size:11px;color:var(--muted);font-weight:400"></span></div>
@@ -548,7 +570,7 @@ tr.clickable:hover td{background:var(--surface-2)}
 
 <!-- ===== EVIDENCE ===== -->
 <div id="pg-evidence" class="page">
-  <div class="page-hdr"><h2>Evidence timeline</h2><span id="evidence-count" style="font-size:12px;color:var(--muted)"></span></div>
+  <div class="page-hdr"><h2>Evidence timeline</h2><span id="evidence-count" style="font-size:12px;color:var(--muted)"></span><button class="btn-docs" onclick="showDocs('evidence')" style="margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Docs</button></div>
   <div class="filter-bar" id="evidence-filters">
     <div class="filter-chip active" data-filter="all">All</div>
     <div class="filter-chip" data-filter="flagged">Flagged</div>
@@ -561,7 +583,7 @@ tr.clickable:hover td{background:var(--surface-2)}
 
 <!-- ===== FINDINGS ===== -->
 <div id="pg-findings" class="page">
-  <div class="page-hdr"><h2>Findings</h2><button class="btn primary" onclick="showNewFinding()">+ New finding</button></div>
+  <div class="page-hdr"><h2>Findings</h2><button class="btn-docs" onclick="showDocs('findings')" style="margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Docs</button><button class="btn primary" onclick="showNewFinding()">+ New finding</button></div>
   <div class="filter-bar" id="findings-filters"></div>
   <div id="findings-bulk-bar" style="display:none;margin-bottom:8px;padding:8px 12px;background:var(--surface);border:1px solid var(--accent);border-radius:var(--radius);display:none;align-items:center;gap:8px;font-size:13px"><span id="findings-bulk-count">0 selected</span><button class="btn sm primary" onclick="bulkVerifyFindings()">Verify selected</button><button class="btn sm danger" onclick="bulkDeleteFindings()">Delete selected</button><button class="btn sm ghost" onclick="clearFindingSelection()">Clear</button></div>
   <div class="card"><table><thead><tr><th style="width:30px"><input type="checkbox" id="findings-select-all" onchange="toggleAllFindings(this.checked)"></th><th style="width:30px">#</th><th style="width:70px">Sev</th><th>Title</th><th style="width:70px">MITRE</th><th style="width:80px">Status</th><th style="width:80px">Rec</th><th style="width:30px"></th></tr></thead><tbody id="findings-table"></tbody></table></div>
@@ -569,14 +591,14 @@ tr.clickable:hover td{background:var(--surface-2)}
 
 <!-- ===== CREDENTIALS ===== -->
 <div id="pg-creds" class="page">
-  <div class="page-hdr"><h2>Credentials</h2><button class="btn primary" onclick="showNewCred()">+ Add credential</button></div>
+  <div class="page-hdr"><h2>Credentials</h2><button class="btn-docs" onclick="showDocs('creds')" style="margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Docs</button><button class="btn primary" onclick="showNewCred()">+ Add credential</button></div>
   <div id="creds-bulk-bar" style="display:none;margin-bottom:8px;padding:8px 12px;background:var(--surface);border:1px solid var(--accent);border-radius:var(--radius);align-items:center;gap:8px;font-size:13px"><span id="creds-bulk-count">0 selected</span><button class="btn sm danger" onclick="bulkDeleteCreds()">Delete selected</button><button class="btn sm ghost" onclick="clearCredSelection()">Clear</button></div>
   <div class="card"><table><thead><tr><th style="width:30px"><input type="checkbox" id="creds-select-all" onchange="toggleAllCreds(this.checked)"></th><th>Username</th><th>Secret</th><th>Type</th><th>Host</th><th>Source</th><th style="width:80px">Actions</th></tr></thead><tbody id="creds-table"></tbody></table></div>
 </div>
 
 <!-- ===== SCOPE ===== -->
 <div id="pg-scope" class="page">
-  <div class="page-hdr"><h2>Scope</h2><button class="btn primary" onclick="showAddScope()">+ Add hosts</button></div>
+  <div class="page-hdr"><h2>Scope</h2><button class="btn-docs" onclick="showDocs('scope')" style="margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Docs</button><button class="btn primary" onclick="showAddScope()">+ Add hosts</button></div>
   <div id="scope-summary" style="margin-bottom:12px"></div>
   <div class="card" id="scope-list"></div>
 </div>
@@ -585,7 +607,8 @@ tr.clickable:hover td{background:var(--surface-2)}
 <div id="pg-checklist" class="page">
   <div class="page-hdr">
     <h2>Checklist</h2>
-    <div style="display:flex;gap:6px">
+    <div style="display:flex;gap:6px;margin-left:auto">
+      <button class="btn-docs" onclick="showDocs('checklist')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Docs</button>
       <button class="btn" onclick="showLoadChecklist()">Load PTES</button>
       <button class="btn" onclick="showAddCheckItem()">+ Custom item</button>
     </div>
@@ -596,13 +619,13 @@ tr.clickable:hover td{background:var(--surface-2)}
 
 <!-- ===== SESSIONS ===== -->
 <div id="pg-sessions" class="page">
-  <div class="page-hdr"><h2>Sessions</h2></div>
+  <div class="page-hdr"><h2>Sessions</h2><button class="btn-docs" onclick="showDocs('sessions')" style="margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Docs</button></div>
   <div class="card"><table><thead><tr><th>ID</th><th>Name</th><th>Source</th><th>Status</th><th>Started</th><th>Operator</th></tr></thead><tbody id="sessions-table"></tbody></table></div>
 </div>
 
 <!-- ===== TEMPLATES ===== -->
 <div id="pg-templates" class="page">
-  <div class="page-hdr"><h2>Report Templates</h2><button class="btn sm primary" onclick="showNewTemplate()">+ New Template</button></div>
+  <div class="page-hdr"><h2>Report Templates</h2><button class="btn-docs" onclick="showDocs('templates')" style="margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Docs</button><button class="btn sm primary" onclick="showNewTemplate()">+ New Template</button></div>
   <div class="tpl-grid">
     <div class="card" style="overflow-y:auto;padding:6px" id="template-list"></div>
     <div class="card tpl-edit-area">
@@ -621,18 +644,18 @@ tr.clickable:hover td{background:var(--surface-2)}
 <!-- ===== AUDIT ===== -->
 <!-- ===== TOPOLOGY ===== -->
 <div id="pg-topology" class="page">
-  <div class="page-hdr"><h2>Network Topology</h2></div>
+  <div class="page-hdr"><h2>Network Topology</h2><button class="btn-docs" onclick="showDocs('topology')" style="margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Docs</button></div>
   <div id="topo-canvas" style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);min-height:400px;position:relative;overflow:hidden"></div>
 </div>
 
 <!-- ===== ATT&CK MAP ===== -->
 <div id="pg-attack" class="page">
-  <div class="page-hdr"><h2>MITRE ATT&amp;CK Kill Chain</h2></div>
+  <div class="page-hdr"><h2>MITRE ATT&amp;CK Kill Chain</h2><button class="btn-docs" onclick="showDocs('attack')" style="margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Docs</button></div>
   <div id="attack-map" style="overflow-x:auto"></div>
 </div>
 
 <div id="pg-audit" class="page">
-  <div class="page-hdr"><h2>Audit log</h2></div>
+  <div class="page-hdr"><h2>Audit log</h2><button class="btn-docs" onclick="showDocs('audit')" style="margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Docs</button></div>
   <div class="filter-bar" id="audit-filters">
     <div class="filter-chip active" data-filter="all">All</div>
     <div class="filter-chip" data-filter="create">Creates</div>
@@ -643,12 +666,12 @@ tr.clickable:hover td{background:var(--surface-2)}
 </div>
 
 <div id="pg-team" class="page">
-  <div class="page-hdr"><h2>Team Management</h2><button class="btn primary" onclick="showAddOperator()">+ Add member</button></div>
+  <div class="page-hdr"><h2>Team Management</h2><button class="btn-docs" onclick="showDocs('team')" style="margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Docs</button><button class="btn primary" onclick="showAddOperator()">+ Add member</button></div>
   <div class="card"><table><thead><tr><th>Name</th><th>Role</th><th style="width:150px">Created</th><th style="width:150px">Last seen</th><th style="width:180px">Actions</th></tr></thead><tbody id="team-table"></tbody></table></div>
 </div>
 
 <div id="pg-settings" class="page">
-  <div class="page-hdr"><h2>Engagement Settings</h2></div>
+  <div class="page-hdr"><h2>Engagement Settings</h2><button class="btn-docs" onclick="showDocs('settings')" style="margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Docs</button></div>
   <div class="card" style="max-width:700px">
     <div style="display:grid;gap:12px">
       <div><label style="font-weight:500;display:block;margin-bottom:4px">Engagement name</label><input id="set-name" class="input" style="width:100%"></div>
@@ -680,12 +703,14 @@ tr.clickable:hover td{background:var(--surface-2)}
 </div><!-- /shell -->
 
 <div id="modal-root"></div>
+<div id="docs-root"></div>
 <div id="lightbox-root"></div>
 <div class="toast-container" id="toast-container"></div>
 
 <script>
 // Auth: session cookie handles authentication (no API key in JS)
 const H={'Content-Type':'application/json'};
+let KEY=null;
 let currentUser={operator:'',role:'lead',permissions:{}};
 
 async function initAuth(){
@@ -1453,6 +1478,28 @@ function showModal(title,body,onSubmit){
   document.getElementById('modal-submit').onclick=async()=>{try{await onSubmit()}catch(e){toast('Error: '+e.message,'error')}};
 }
 function closeModal(){document.getElementById('modal-root').innerHTML=''}
+
+const pageDocs={
+overview:{title:'Overview',body:'<h4>Engagement Dashboard</h4><ul><li><strong>Evidence count</strong> — total captured commands with auto-flagged highlights</li><li><strong>Findings count</strong> — total findings with critical/high breakdown</li><li><strong>Credentials count</strong> — harvested credentials across all sessions</li><li><strong>Scope tested</strong> — percentage of in-scope hosts tested</li><li><strong>Daily progress chart</strong> — evidence captured per day over the last 7 days</li><li><strong>Recent findings</strong> — latest findings with severity, MITRE mapping, and status</li><li><strong>Activity feed</strong> — real-time stream of recent commands and actions</li></ul><div class="doc-tip">Click on a finding row to jump to its detail page. Evidence and findings counters update in real-time via WebSocket.</div>'},
+evidence:{title:'Evidence Timeline',body:'<h4>Features</h4><ul><li><strong>Search &amp; filter</strong> — filter by host, tag, priority, or keyword</li><li><strong>Host filter</strong> — click a host badge to show only evidence from that target</li><li><strong>Detail panel</strong> — click any row to see full input/output, metadata, tags, and linked findings</li><li><strong>Link to finding</strong> — from the detail panel, link evidence to an existing finding as proof</li><li><strong>Auto-flagged</strong> — evidence matching rule patterns is automatically tagged and prioritized</li></ul><h4>CLI Equivalents</h4><div class="doc-cli">rt exec &lt;command&gt;<br>rt search "keyword"<br>rt query "SELECT * FROM evidence LIMIT 10"</div>'},
+findings:{title:'Findings',body:'<h4>Features</h4><ul><li><strong>Create finding</strong> — click "+ New finding" with title, description, severity, MITRE technique, affected hosts</li><li><strong>Verify</strong> — change status to confirmed / rejected / false-positive</li><li><strong>Recommendations</strong> — add remediation recommendations</li><li><strong>Merge</strong> — combine duplicate findings into one</li><li><strong>Bulk actions</strong> — select multiple findings, then bulk-update severity or status</li><li><strong>Evidence links</strong> — view linked evidence proving the finding</li><li><strong>Comments</strong> — add collaborative notes and discussion threads</li></ul><h4>Severity Levels</h4><ul><li>critical, high, medium, low, info</li></ul><h4>CLI Equivalents</h4><div class="doc-cli">rt finding "Title" --priority high --mitre T1190<br>rt verify-finding &lt;id&gt; confirmed<br>rt recommend &lt;id&gt; "Fix description"<br>rt finding-note &lt;id&gt; "Note text"</div>'},
+creds:{title:'Credential Locker',body:'<h4>Features</h4><ul><li><strong>Add credential</strong> — manually add username/password/hash with host and source</li><li><strong>Reveal</strong> — click the eye icon to reveal a masked credential</li><li><strong>Bulk actions</strong> — select and bulk-delete credentials</li><li><strong>Auto-parsed</strong> — credentials from secretsdump, mimikatz, and kerberoast output are automatically extracted</li><li><strong>Double-encrypted</strong> — AES-256-GCM encrypted inside the already-encrypted database</li></ul><h4>CLI Equivalents</h4><div class="doc-cli">rt cred &lt;user&gt; &lt;secret&gt; --host &lt;ip&gt; --source mimikatz<br>rt creds</div>'},
+scope:{title:'Scope Management',body:'<h4>Features</h4><ul><li><strong>Add hosts</strong> — add IP addresses or CIDR ranges to the scope</li><li><strong>Mark tested</strong> — click the checkmark to mark a host as tested</li><li><strong>Progress bar</strong> — visual indicator of overall scope coverage</li><li><strong>Untested filter</strong> — quickly filter to see only untested hosts</li></ul><h4>CLI Equivalents</h4><div class="doc-cli">rt scope 10.0.0.1,10.0.0.2<br>rt scope-tested 10.0.0.1<br>rt scope-untested<br>rt scope-list</div>'},
+checklist:{title:'Engagement Checklist',body:'<h4>Features</h4><ul><li><strong>Load PTES</strong> — load the Penetration Testing Execution Standard checklist</li><li><strong>Toggle items</strong> — click to mark items as done/not-done</li><li><strong>Progress tracking</strong> — see overall completion percentage</li><li><strong>Categories</strong> — items organized by testing phase (recon, enumeration, exploitation, etc.)</li></ul><h4>CLI Equivalents</h4><div class="doc-cli">rt checklist-load ptes<br>rt checklist<br>rt check &lt;id&gt;</div>'},
+sessions:{title:'Sessions',body:'<h4>Features</h4><ul><li><strong>Session list</strong> — shows operator, start/stop time, duration, and evidence count per session</li><li><strong>Active sessions</strong> — highlighted with a green indicator</li><li><strong>Remote sessions</strong> — sessions from remote agents are labeled with their origin</li></ul><h4>CLI Equivalents</h4><div class="doc-cli">rt start<br>rt stop<br>rt time</div>'},
+attack:{title:'MITRE ATT&CK Kill Chain',body:'<h4>Features</h4><ul><li><strong>Kill chain view</strong> — techniques organized by tactic columns (Initial Access → Impact)</li><li><strong>Heat intensity</strong> — color intensity shows finding count per technique</li><li><strong>Click technique</strong> — see the findings mapped to that specific ATT&CK technique</li><li><strong>Coverage gaps</strong> — quickly identify which attack phases have not been tested</li></ul><h4>Export</h4><div class="doc-cli">rt export mitre -o navigator.json</div><div class="doc-tip">Export to ATT&CK Navigator JSON for use in the official MITRE ATT&CK Navigator tool.</div>'},
+topology:{title:'Network Topology',body:'<h4>Features</h4><ul><li><strong>Auto-generated</strong> — nodes created from scope hosts and evidence target hosts</li><li><strong>Drag &amp; zoom</strong> — interactive D3.js graph with pan and zoom</li><li><strong>Node details</strong> — click a node to see associated evidence and findings</li><li><strong>Attack paths</strong> — connections visualize lateral movement between hosts</li></ul>'},
+templates:{title:'Report Templates',body:'<h4>Features</h4><ul><li><strong>Create template</strong> — define company name, accent color, logo, and content sections</li><li><strong>Edit in-place</strong> — live editor with preview</li><li><strong>Default template</strong> — built-in professional report template</li><li><strong>Variables</strong> — templates support Go template variables for dynamic content</li></ul><h4>CLI Equivalents</h4><div class="doc-cli">rt report --html -o report.html<br>rt report --md -o report.md</div>'},
+audit:{title:'Audit Log',body:'<h4>Features</h4><ul><li><strong>Every action logged</strong> — evidence capture, finding changes, credential access, operator management</li><li><strong>Who, what, when</strong> — each entry shows operator, action type, target, and timestamp</li><li><strong>Tamper-proof</strong> — audit log entries cannot be modified or deleted</li><li><strong>Filter</strong> — search by operator, action type, or date range</li></ul>'},
+team:{title:'Team Management',body:'<h4>Features (Lead only)</h4><ul><li><strong>Add member</strong> — create a new operator with a role</li><li><strong>API key</strong> — each operator gets a unique API key for CLI and remote agent auth</li><li><strong>Role management</strong> — change operator roles to control access</li><li><strong>Rotate key</strong> — generate a new API key (invalidates the previous one)</li><li><strong>Remove</strong> — remove an operator from the engagement</li></ul><h4>Roles</h4><table class="doc-table"><tr><th>Role</th><th>Access</th></tr><tr><td><strong>Lead</strong></td><td>Full access — manage team, settings, all data</td></tr><tr><td><strong>Operator</strong></td><td>Create/edit evidence, findings, credentials</td></tr><tr><td><strong>Reviewer</strong></td><td>View + verify findings, export reports</td></tr><tr><td><strong>Viewer</strong></td><td>Read-only access to overview, findings, timeline</td></tr></table><h4>CLI Equivalents</h4><div class="doc-cli">rt operator-add &lt;name&gt; &lt;role&gt;<br>rt operator-list<br>rt operator-rotate &lt;name&gt;</div>'},
+settings:{title:'Engagement Settings',body:'<h4>Features (Lead only)</h4><ul><li><strong>Engagement name</strong> — display name for the engagement</li><li><strong>Client name</strong> — client organization</li><li><strong>Rules of Engagement</strong> — document scope boundaries and authorized actions</li><li><strong>Auto-lock timeout</strong> — inactivity timeout for automatic session lock (default: 30 min)</li></ul><div class="doc-tip">Changes take effect immediately after clicking Save.</div>'}
+};
+
+function showDocs(page){
+  const d=pageDocs[page];if(!d)return;
+  document.getElementById('docs-root').innerHTML='<div class="modal-bg" onclick="if(event.target===this)closeDocs()"><div class="doc-modal"><div class="doc-modal-hdr"><h3>'+d.title+'</h3><button class="doc-modal-close" onclick="closeDocs()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="doc-modal-body">'+d.body+'</div></div></div>';
+}
+function closeDocs(){document.getElementById('docs-root').innerHTML=''}
 function gv(id){return document.getElementById(id).value}
 
 // ===== LIGHTBOX =====
