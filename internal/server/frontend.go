@@ -275,8 +275,14 @@ tr.clickable:hover td{background:var(--surface-2)}
 /* === DETAIL PANEL === */
 .detail{position:absolute;top:0;right:0;width:400px;height:100%;background:var(--surface);border-left:1px solid var(--border);overflow-y:auto;transform:translateX(100%);transition:transform .2s ease;z-index:10}
 .detail.open{transform:translateX(0)}
+.detail.fullscreen{width:100%!important;border-left:none}
+.detail-resize{position:absolute;top:0;left:-3px;width:6px;height:100%;cursor:col-resize;z-index:11}
+.detail-resize:hover,.detail-resize.active{background:var(--accent);opacity:.4}
 .detail-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:1}
-.detail-hdr h3{font-size:14px;font-weight:600}
+.detail-hdr h3{font-size:14px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detail-hdr-btns{display:flex;gap:4px;align-items:center;margin-left:8px}
+.detail-hdr-btn{cursor:pointer;color:var(--muted);font-size:14px;padding:4px 6px;border-radius:4px;transition:all .12s;background:none;border:none;display:flex;align-items:center}
+.detail-hdr-btn:hover{background:var(--surface-2);color:var(--text)}
 .detail-close{cursor:pointer;color:var(--muted);font-size:18px;padding:4px;border-radius:4px;transition:all .12s;background:none;border:none}
 .detail-close:hover{background:var(--surface-2);color:var(--text)}
 .detail-body{padding:16px}
@@ -284,6 +290,10 @@ tr.clickable:hover td{background:var(--surface-2)}
 .detail-field .lbl{font-size:11px;color:var(--muted);margin-bottom:3px;font-weight:500;text-transform:uppercase;letter-spacing:.03em}
 .detail-field .val{font-size:13px}
 .detail-actions{display:flex;flex-wrap:wrap;gap:6px;padding:14px 16px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--surface)}
+.output-wrap{position:relative}
+.output-copy{position:absolute;top:6px;right:6px;padding:3px 8px;font-size:10px;border-radius:4px;background:var(--surface-2);border:1px solid var(--border);color:var(--muted);cursor:pointer;opacity:0;transition:opacity .15s}
+.output-wrap:hover .output-copy{opacity:1}
+.output-copy:hover{color:var(--text);background:var(--bg)}
 
 /* === OUTPUT VIEWER === */
 .output-box{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-family:var(--font-mono);font-size:11px;overflow-y:auto;white-space:pre-wrap;color:var(--text-2);line-height:1.6;word-break:break-all}
@@ -692,9 +702,13 @@ tr.clickable:hover td{background:var(--surface-2)}
 
 <!-- DETAIL PANEL -->
 <div class="detail" id="detail-panel">
+  <div class="detail-resize" id="detail-resize"></div>
   <div class="detail-hdr">
     <h3 id="detail-title"></h3>
-    <button class="detail-close" onclick="closeDetail()">✕</button>
+    <div class="detail-hdr-btns">
+      <button class="detail-hdr-btn" onclick="toggleDetailFullscreen()" title="Toggle fullscreen" id="detail-fs-btn">⛶</button>
+      <button class="detail-close" onclick="closeDetail()">✕</button>
+    </div>
   </div>
   <div class="detail-body" id="detail-body"></div>
   <div class="detail-actions" id="detail-actions"></div>
@@ -972,7 +986,7 @@ async function showEvidenceDetail(id){
     '<div class="detail-field"><div class="lbl">Tags</div><div class="val">'+((ev.Tags||[]).map(t=>tagSpan(t)).join(' ')||'<span style="color:var(--muted)">none</span>')+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Hash</div><div class="val mono" style="font-size:10px;color:var(--muted);word-break:break-all">'+esc(ev.Hash)+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Attachments ('+att.length+')</div><div class="val">'+renderAttachments(att)+'</div></div>'+
-    '<div class="detail-field"><div class="lbl">Output</div><div class="output-box" id="ev-output">'+esc(ev.Output||'(no output)')+'</div>'+
+    '<div class="detail-field"><div class="lbl">Output</div><div class="output-wrap"><button class="output-copy" onclick="copyOutput()">Copy</button><div class="output-box" id="ev-output">'+esc(ev.Output||'(no output)')+'</div></div>'+
     '<button class="btn sm ghost" style="margin-top:4px" onclick="document.getElementById(\'ev-output\').classList.toggle(\'collapsed\');this.textContent=this.textContent===\'Collapse\'?\'Expand\':\'Collapse\'">Collapse</button></div>';
   document.getElementById('detail-title').textContent='Evidence #'+id;
   document.getElementById('detail-actions').innerHTML=
@@ -1473,8 +1487,57 @@ async function saveSettings(){
 }
 
 // ===== DETAIL PANEL =====
-function openDetail(){document.getElementById('detail-panel').classList.add('open')}
-function closeDetail(){document.getElementById('detail-panel').classList.remove('open')}
+function openDetail(){
+  const p=document.getElementById('detail-panel');
+  const saved=localStorage.getItem('rt-detail-width');
+  if(saved)p.style.width=saved;
+  p.classList.add('open');
+}
+function closeDetail(){
+  const p=document.getElementById('detail-panel');
+  p.classList.remove('open');
+  p.classList.remove('fullscreen');
+  document.getElementById('detail-fs-btn').textContent='⛶';
+}
+function toggleDetailFullscreen(){
+  const p=document.getElementById('detail-panel');
+  const btn=document.getElementById('detail-fs-btn');
+  p.classList.toggle('fullscreen');
+  btn.textContent=p.classList.contains('fullscreen')?'⧉':'⛶';
+}
+function copyOutput(){
+  const el=document.getElementById('ev-output');
+  if(!el)return;
+  navigator.clipboard.writeText(el.textContent).then(()=>toast('Output copied','success'));
+}
+(function(){
+  const handle=document.getElementById('detail-resize');
+  const panel=document.getElementById('detail-panel');
+  let dragging=false,startX=0,startW=0;
+  handle.addEventListener('mousedown',e=>{
+    if(panel.classList.contains('fullscreen'))return;
+    dragging=true;startX=e.clientX;startW=panel.offsetWidth;
+    handle.classList.add('active');
+    document.body.style.cursor='col-resize';
+    document.body.style.userSelect='none';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!dragging)return;
+    let w=startW-(e.clientX-startX);
+    if(w<300)w=300;
+    if(w>window.innerWidth*0.8)w=window.innerWidth*0.8;
+    panel.style.width=w+'px';
+  });
+  document.addEventListener('mouseup',()=>{
+    if(!dragging)return;
+    dragging=false;
+    handle.classList.remove('active');
+    document.body.style.cursor='';
+    document.body.style.userSelect='';
+    localStorage.setItem('rt-detail-width',panel.style.width);
+  });
+})()
 
 // ===== MODAL =====
 function showModal(title,body,onSubmit){
