@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/user/rt/internal/evidence"
 	"github.com/user/rt/internal/remote"
+	"github.com/user/rt/internal/scope"
 )
 
 // Session holds the state for an active capture session.
@@ -102,6 +104,7 @@ func RunCommand(db *sql.DB, sessionID, engID, operator, command, cwd string) (*e
 	}
 
 	flagResult, _ := evidence.AutoFlag(db, ev, engID, operator)
+	autoAddScope(db, engID, command, operator)
 	syncToRemote(ev, operator)
 
 	return ev, flagResult, nil
@@ -146,6 +149,7 @@ func ExecInteractive(db *sql.DB, sessionID, engID, operator, command string) err
 	if ev != nil {
 		flagResult, _ := evidence.AutoFlag(db, ev, engID, operator)
 		evidence.PrintAutoFlagResult(flagResult)
+		autoAddScope(db, engID, command, operator)
 		syncToRemote(ev, operator)
 	}
 
@@ -163,7 +167,8 @@ func syncToRemote(ev *evidence.Evidence, operator string) {
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
 	}
-	resp, err := client.SubmitEvidence(remote.EvidenceReq{
+
+	evReq := remote.EvidenceReq{
 		SessionID:  state.SessionID,
 		Action:     ev.Action,
 		Input:      ev.Input,
@@ -172,12 +177,20 @@ func syncToRemote(ev *evidence.Evidence, operator string) {
 		DurationMs: ev.DurationMs,
 		CWD:        ev.CWD,
 		Operator:   operator,
-	})
+	}
+
+	resp, err := client.SubmitEvidence(evReq)
 	if err != nil {
-		fmt.Printf("  [sync] Warning: remote sync failed: %v\n", err)
+		remote.Enqueue(remote.QueueItem{Type: "evidence", Evidence: &evReq})
+		qLen := remote.QueueLen()
+		fmt.Printf("  [sync] Server unreachable — evidence queued (%d pending)\n", qLen)
 		return
 	}
 	fmt.Printf("  [sync] Evidence #%d synced to server (remote #%d)\n", ev.ID, resp.ID)
+
+	if sent, _ := remote.DrainQueue(client); sent > 0 {
+		fmt.Printf("  [sync] Drained %d queued item(s)\n", sent)
+	}
 }
 
 func (s *Session) captureOutput(r io.Reader) {
@@ -203,6 +216,34 @@ func (s *Session) Stop() error {
 		s.cmd.Process.Kill()
 	}
 	return nil
+}
+
+var ipRegex = regexp.MustCompile(`\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b`)
+
+var skipIPs = map[string]bool{
+	"0.0.0.0": true, "127.0.0.1": true, "255.255.255.255": true,
+}
+
+func autoAddScope(db *sql.DB, engID, command, operator string) {
+	if db == nil || engID == "" {
+		return
+	}
+	ips := ipRegex.FindAllString(command, -1)
+	var newHosts []string
+	seen := map[string]bool{}
+	for _, ip := range ips {
+		if skipIPs[ip] || seen[ip] || strings.HasPrefix(ip, "0.") {
+			continue
+		}
+		seen[ip] = true
+		newHosts = append(newHosts, ip)
+	}
+	if len(newHosts) > 0 {
+		added, _ := scope.Add(db, engID, strings.Join(newHosts, ","), operator)
+		if added > 0 {
+			fmt.Printf("  [scope] Auto-added %d host(s): %s\n", added, strings.Join(newHosts, ", "))
+		}
+	}
 }
 
 func getShell() string {

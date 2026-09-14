@@ -1,11 +1,15 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/user/rt/internal/credentials"
+	"github.com/user/rt/internal/remote"
 )
 
 var credCmd = &cobra.Command{
@@ -13,11 +17,6 @@ var credCmd = &cobra.Command{
 	Short: "Store a credential",
 	Args:  cobra.MinimumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		database, _, engID, err := getActiveSessionDB()
-		if err != nil {
-			return err
-		}
-
 		username := args[0]
 		secret := args[1]
 		host, _ := cmd.Flags().GetString("host")
@@ -25,8 +24,41 @@ var credCmd = &cobra.Command{
 		if secretType == "" {
 			secretType = detectSecretType(secret)
 		}
-
 		operator := getOperator()
+
+		if state, err := remote.LoadState(); err == nil && state != nil {
+			client := remote.NewClient(state.ServerURL, state.APIKey)
+			if state.Insecure {
+				client.HTTPClient = &http.Client{
+					Timeout: 30 * time.Second,
+					Transport: &http.Transport{
+						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+					},
+				}
+			}
+			if err := client.SubmitCredential(remote.CredReq{
+				Username:   username,
+				Secret:     secret,
+				SecretType: secretType,
+				Host:       host,
+				Operator:   operator,
+			}); err != nil {
+				return fmt.Errorf("remote cred: %w", err)
+			}
+			masked := maskCred(secret)
+			fmt.Printf("  [remote] Credential stored: %s : %s (%s)", username, masked, secretType)
+			if host != "" {
+				fmt.Printf(" @ %s", host)
+			}
+			fmt.Println()
+			return nil
+		}
+
+		database, _, engID, err := getActiveSessionDB()
+		if err != nil {
+			return err
+		}
+
 		if err := credentials.Store(database, engID, username, secret, secretType, host, operator, 0); err != nil {
 			return err
 		}

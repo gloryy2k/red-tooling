@@ -84,6 +84,28 @@ func (c *Client) SubmitCredential(req CredReq) error {
 	return c.postJSON("/api/creds", req, nil)
 }
 
+type FindingReq struct {
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Priority    string   `json:"priority"`
+	Host        string   `json:"host"`
+	Mitre       []string `json:"mitre"`
+	EvidenceIDs []int64  `json:"evidence_ids"`
+	Operator    string   `json:"operator"`
+}
+
+type FindingResp struct {
+	ID int64 `json:"id"`
+}
+
+func (c *Client) SubmitFinding(req FindingReq) (*FindingResp, error) {
+	var resp FindingResp
+	if err := c.postJSON("/api/findings", req, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 func (c *Client) postJSON(path string, body interface{}, result interface{}) error {
 	data, err := json.Marshal(body)
 	if err != nil {

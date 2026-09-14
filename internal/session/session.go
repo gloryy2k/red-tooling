@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/user/rt/internal/audit"
@@ -35,6 +36,9 @@ func Create(db *sql.DB, id, engID, name, source, operator string) error {
 		time.Now().UTC().Format(time.RFC3339),
 	)
 	if err != nil {
+		if strings.Contains(err.Error(), "FOREIGN KEY constraint failed") {
+			return fmt.Errorf("operator %q not found on server — ask the lead to run: rt operator add %s operator", operator, operator)
+		}
 		return fmt.Errorf("create session: %w", err)
 	}
 	audit.Log(db, operator, "session.start", "session", id, map[string]string{"name": name, "source": source})

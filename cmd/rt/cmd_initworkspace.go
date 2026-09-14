@@ -218,40 +218,48 @@ export RT_INSECURE=1                  # for self-signed certs
 ` + "```" + `
 **After setting these env vars, you do NOT need --server/--key/--insecure flags.**
 
-### Start a remote session
+### Join the server
 ` + "```bash" + `
-rt remote-session start --operator $(whoami)
-# Note the session ID printed (e.g. remote-a1b2c3d4)
+rt join
+# Prints session ID and confirms connection
 ` + "```" + `
 
-### Test — ALL commands through rt remote-exec
+### Run commands — ALL go through rt exec (auto-synced to server)
 ` + "```bash" + `
-rt remote-exec --session <session-id> -- <command>
+rt exec -- <command>
 # Examples:
-rt remote-exec --session <session-id> -- nmap -sV <target>
-rt remote-exec --session <session-id> -- curl -s http://<target>/api
+rt exec -- nmap -sV <target>
+rt exec --cmd "netexec smb <target> -u '' -p ''"   # complex quoting
+` + "```" + `
+
+### Record findings and credentials (synced to server)
+` + "```bash" + `
+rt finding "SMB Signing Disabled" --priority medium --mitre T1557 --host <target>
+rt cred <user> <secret> --host <target>
 ` + "```" + `
 
 ### Get engagement context from server
 ` + "```bash" + `
 rt sync
 # Shows: scope hosts, existing findings, checklist progress
+# Also drains any queued evidence from offline periods
 ` + "```" + `
 
-### Stop session when done
+### Leave when done
 ` + "```bash" + `
-rt remote-session stop --session <session-id>
+rt leave
 ` + "```" + `
 
 ### What you CANNOT do in remote mode
 - ` + "`rt new`" + `, ` + "`rt unlock`" + `, ` + "`rt start`" + `, ` + "`rt stop`" + `, ` + "`rt lock`" + ` — the server manages the engagement
 - ` + "`rt serve`" + ` — the dashboard is on the server, tell the user to open the server URL
-- ` + "`rt finding`" + `, ` + "`rt cred`" + `, ` + "`rt report`" + ` — these need local DB; use the server dashboard instead
+- ` + "`rt report`" + ` — use the server dashboard to generate reports
 - ` + "`rt verify-chain`" + ` — chain is on the server
 
 ### What you CAN do in remote mode
-- ` + "`rt remote-exec`" + ` — execute + submit evidence to server
-- ` + "`rt remote-session`" + ` — start/stop sessions
+- ` + "`rt exec`" + ` — execute + auto-submit evidence to server
+- ` + "`rt finding`" + ` — create findings (synced to server)
+- ` + "`rt cred`" + ` — store credentials (synced to server)
 - ` + "`rt sync`" + ` — pull context (scope, findings, checklist)
 
 ### Remote completion
@@ -261,23 +269,24 @@ Tell the user: "Evidence has been submitted to the central server at <server-url
 
 ## Evidence Rules (both modes)
 
-1. **Every command against a target MUST go through RT** (` + "`rt exec`" + ` or ` + "`rt remote-exec`" + `)
-2. **Record findings immediately** — in local mode: ` + "`rt finding`" + `, in remote mode: note findings in output, the lead reviews on the dashboard
-3. **Record credentials immediately** — in local mode: ` + "`rt cred`" + `, in remote mode: they appear in evidence output and can be extracted on the server
+1. **Every command against a target MUST go through RT** — use ` + "`rt exec`" + ` in both modes
+2. **Record findings immediately** — ` + "`rt finding`" + ` works in both local and remote mode
+3. **Record credentials immediately** — ` + "`rt cred`" + ` works in both local and remote mode
 4. **Use ` + "`--`" + ` separator** for flags: ` + "`rt exec -- curl -s http://target`" + `
-5. **Screenshots are MANDATORY** for web vulnerabilities: ` + "`rt screenshot <file>`" + `
-6. Every exploit step MUST be a captured command — milestones alone are NOT evidence
+5. **Use ` + "`--cmd`" + `** for complex quoting: ` + "`rt exec --cmd \"netexec smb target -u '' -p ''\"" + `
+6. **Screenshots are MANDATORY** for web vulnerabilities: ` + "`rt screenshot <file>`" + `
+7. Every exploit step MUST be a captured command — milestones alone are NOT evidence
 
 ## Quick Reference
 
-| Action | Local Mode | Remote Mode |
+| Action | Local Mode | Remote Mode (after ` + "`rt join`" + `) |
 |--------|-----------|-------------|
-| Execute + capture | ` + "`rt exec -- <cmd>`" + ` | ` + "`rt remote-exec --session <id> -- <cmd>`" + ` |
-| Start session | ` + "`rt start`" + ` | ` + "`rt remote-session start`" + ` |
-| Stop session | ` + "`rt stop`" + ` | ` + "`rt remote-session stop --session <id>`" + ` |
-| Create finding | ` + "`rt finding \"Title\" --priority high`" + ` | Use server dashboard |
-| Store credential | ` + "`rt cred <user> <secret>`" + ` | Auto-extracted from evidence on server |
-| Sync context | N/A | ` + "`rt sync --server ... --key ...`" + ` |
+| Execute + capture | ` + "`rt exec -- <cmd>`" + ` | ` + "`rt exec -- <cmd>`" + ` (auto-synced) |
+| Start session | ` + "`rt start`" + ` | ` + "`rt join`" + ` |
+| Stop session | ` + "`rt stop`" + ` | ` + "`rt leave`" + ` |
+| Create finding | ` + "`rt finding \"Title\" --priority high`" + ` | ` + "`rt finding \"Title\" --priority high`" + ` (synced) |
+| Store credential | ` + "`rt cred <user> <secret>`" + ` | ` + "`rt cred <user> <secret>`" + ` (synced) |
+| Sync context | N/A | ` + "`rt sync`" + ` |
 | Dashboard | ` + "`rt serve --listen localhost:7777`" + ` | Already running on server |
 | Generate report | ` + "`rt report --html`" + ` | Use server dashboard |`
 
@@ -366,10 +375,10 @@ export RT_INSECURE=1                  # for self-signed certs (common in pentest
 ` + "```" + `
 **After setting these, you do NOT need --server/--key/--insecure flags on any rt command.**
 
-### Step 2: Start remote session
+### Step 2: Join the server
 ` + "```bash" + `
-rt remote-session start --operator $(whoami)
-# Save the session ID that is printed!
+rt join
+# Prints session ID and confirms connection
 ` + "```" + `
 
 ### Step 3: Get context from server
@@ -378,27 +387,31 @@ rt sync
 # Shows scope, existing findings, checklist — understand what is already done
 ` + "```" + `
 
-### Step 4: Test (ALL commands through rt remote-exec)
+### Step 4: Test (ALL commands through rt exec — auto-synced to server)
 ` + "```bash" + `
-# Every command against the target — no need to repeat server/key flags:
-rt remote-exec --session <session-id> -- <command>
+rt exec -- <command>
+rt exec --cmd "netexec smb <target> -u '' -p ''"   # complex quoting
 
 # Examples:
-rt remote-exec --session <session-id> -- nmap -sV <target>
-rt remote-exec --session <session-id> -- curl -s http://<target>/api
-rt remote-exec --session <session-id> -- gobuster dir -u http://<target> -w /usr/share/wordlists/common.txt
+rt exec -- nmap -sV <target>
+rt exec -- curl -s http://<target>/api
+rt exec -- gobuster dir -u http://<target> -w /usr/share/wordlists/common.txt
+
+# Record findings and creds directly (synced to server):
+rt finding "SMB Signing Disabled" --priority medium --mitre T1557 --host <target>
+rt cred admin P@ssw0rd --host <target>
 ` + "```" + `
 
 ### Step 5: Wrap up
 ` + "```bash" + `
-rt remote-session stop --session <session-id>
+rt leave
 ` + "```" + `
-**Tell the user**: "All evidence has been submitted to the central server at <server-url>. Open the dashboard there to review findings, manage credentials, and generate the report."
+**Tell the user**: "All evidence has been submitted to the central server at <server-url>. Open the dashboard there to review findings and generate the report."
 
 ### Remote mode rules
 - Do NOT run ` + "`rt new`" + `, ` + "`rt unlock`" + `, ` + "`rt start`" + `, ` + "`rt serve`" + `, ` + "`rt lock`" + ` — the server handles all of this
-- Do NOT run ` + "`rt exec`" + ` — use ` + "`rt remote-exec`" + ` instead
-- Findings and credentials are visible on the server dashboard — the lead manages them there
+- ` + "`rt exec`" + `, ` + "`rt finding`" + `, ` + "`rt cred`" + ` all auto-sync to the server after ` + "`rt join`" + `
+- If the server goes down temporarily, evidence is queued and synced when it's back
 - Use ` + "`rt sync`" + ` to check what scope/findings/checklist already exist
 
 ---

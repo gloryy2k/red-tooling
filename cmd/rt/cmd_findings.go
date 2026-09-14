@@ -1,14 +1,18 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/user/rt/internal/attachments"
 	"github.com/user/rt/internal/findings"
+	"github.com/user/rt/internal/remote"
 )
 
 var findingCmd = &cobra.Command{
@@ -16,19 +20,13 @@ var findingCmd = &cobra.Command{
 	Short: "Create a new finding",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		database, engName, err := requireDB()
-		if err != nil {
-			return err
-		}
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
-		operator := getOperator()
-
 		title := strings.Join(args, " ")
 		desc, _ := cmd.Flags().GetString("desc")
 		priority, _ := cmd.Flags().GetString("priority")
 		evFlag, _ := cmd.Flags().GetString("evidence")
 		mitreFlag, _ := cmd.Flags().GetString("mitre")
 		host, _ := cmd.Flags().GetString("host")
+		operator := getOperator()
 
 		var evIDs []int64
 		if evFlag != "" {
@@ -51,6 +49,16 @@ var findingCmd = &cobra.Command{
 		if priority == "" {
 			priority = "medium"
 		}
+
+		if state, err := remote.LoadState(); err == nil && state != nil {
+			return createRemoteFinding(state, title, desc, priority, host, mitre, evIDs, operator)
+		}
+
+		database, engName, err := requireDB()
+		if err != nil {
+			return err
+		}
+		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
 
 		f, err := findings.Create(database, engID, title, desc, priority, operator, host, evIDs, mitre)
 		if err != nil {
@@ -268,6 +276,32 @@ var recommendCmd = &cobra.Command{
 		fmt.Printf("  Recommendation set for Finding #%d\n", id)
 		return nil
 	},
+}
+
+func createRemoteFinding(state *remote.ConnectionState, title, desc, priority, host string, mitre []string, evIDs []int64, operator string) error {
+	client := remote.NewClient(state.ServerURL, state.APIKey)
+	if state.Insecure {
+		client.HTTPClient = &http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		}
+	}
+	resp, err := client.SubmitFinding(remote.FindingReq{
+		Title:       title,
+		Description: desc,
+		Priority:    priority,
+		Host:        host,
+		Mitre:       mitre,
+		EvidenceIDs: evIDs,
+		Operator:    operator,
+	})
+	if err != nil {
+		return fmt.Errorf("remote finding: %w", err)
+	}
+	fmt.Printf("  [remote] Finding #%d created: %s [%s]\n", resp.ID, title, priority)
+	return nil
 }
 
 func init() {

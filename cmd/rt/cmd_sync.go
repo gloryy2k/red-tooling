@@ -57,6 +57,14 @@ Requires an active connection (rt join) or --server/--key flags.`,
 			}
 		}
 
+		if sent, failed := remote.DrainQueue(client); sent > 0 || failed > 0 {
+			fmt.Printf("  [queue] Drained %d queued item(s)", sent)
+			if failed > 0 {
+				fmt.Printf(", %d failed (will retry)", failed)
+			}
+			fmt.Println()
+		}
+
 		ctx, err := client.GetContext()
 		if err != nil {
 			return fmt.Errorf("fetch context: %w", err)

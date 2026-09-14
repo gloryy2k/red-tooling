@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -62,14 +61,21 @@ func buildRemoteClient(cmd *cobra.Command) (*remote.Client, error) {
 }
 
 var remoteExecCmd = &cobra.Command{
-	Use:   "remote-exec <command>",
-	Short: "Execute a command and submit evidence to a central RT server",
-	Long: `Run a command locally and POST the result to a remote RT server.
+	Use:   "remote-exec [flags] [--] <command> [args...]",
+	Short: "[DEPRECATED: use 'rt join' + 'rt exec'] Execute a command and submit evidence to server",
+	Long: `DEPRECATED: Use 'rt join' then 'rt exec' instead — it's simpler and supports offline queueing.
+
+Run a command locally and POST the result to a remote RT server.
 Requires --server and --key flags (or RT_SERVER / RT_API_KEY env vars).
 Set RT_INSECURE=1 to skip TLS verification for self-signed certs.
-Set RT_TIMEOUT=N to set connection timeout in seconds (default: 10).`,
-	Args: cobra.MinimumNArgs(1),
+Set RT_TIMEOUT=N to set connection timeout in seconds (default: 10).
+
+Use --cmd for commands with complex quoting:
+  rt remote-exec --cmd "netexec smb 10.0.0.1 -u '' -p ''"`,
+	Args: cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		fmt.Println("  [DEPRECATED] Use 'rt join' + 'rt exec' instead — simpler and supports offline queueing.")
+		fmt.Println()
 		client, err := buildRemoteClient(cmd)
 		if err != nil {
 			return err
@@ -103,7 +109,15 @@ Set RT_TIMEOUT=N to set connection timeout in seconds (default: 10).`,
 			fmt.Printf("  [session] Started: %s\n", sessionID)
 		}
 
-		command := strings.Join(args, " ")
+		rawCmd, _ := cmd.Flags().GetString("cmd")
+		var command string
+		if rawCmd != "" {
+			command = rawCmd
+		} else if len(args) > 0 {
+			command = shellJoinArgs(args)
+		} else {
+			return fmt.Errorf("provide a command: rt remote-exec --cmd \"<command>\" or rt remote-exec -- <command>")
+		}
 		fmt.Printf("  [exec] %s\n", command)
 
 		cwd, _ := os.Getwd()
@@ -156,9 +170,11 @@ Set RT_TIMEOUT=N to set connection timeout in seconds (default: 10).`,
 
 var remoteSessionCmd = &cobra.Command{
 	Use:   "remote-session <start|stop>",
-	Short: "Manage a remote session on the central server",
+	Short: "[DEPRECATED: use 'rt join'/'rt leave'] Manage a remote session",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		fmt.Println("  [DEPRECATED] Use 'rt join'/'rt leave' instead.")
+		fmt.Println()
 		client, err := buildRemoteClient(cmd)
 		if err != nil {
 			return err
@@ -222,4 +238,5 @@ func init() {
 		cmd.Flags().Int("timeout", 0, "Connection timeout in seconds (default 10, or RT_TIMEOUT)")
 	}
 	remoteSessionCmd.Flags().String("name", "", "Session name (for start)")
+	remoteExecCmd.Flags().String("cmd", "", "Raw command string (preserves quoting exactly)")
 }

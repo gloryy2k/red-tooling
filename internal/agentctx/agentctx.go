@@ -115,10 +115,12 @@ export RT_SERVER="https://server:8443"
 export RT_API_KEY="rt_key_..."
 export RT_INSECURE=1                   # for self-signed certs
 
-rt remote-session start                # start remote session
-rt remote-exec --session <id> -- <cmd> # exec + submit evidence
-rt remote-session stop --session <id>  # stop session
+rt join                                # join server (auto-sync all rt exec)
+rt exec <command>                      # runs locally + auto-syncs to server
+rt finding "Title" --priority high --mitre T1190 --host 10.0.0.1  # syncs to server
+rt cred <user> <secret> --host <ip>    # syncs to server
 rt sync                                # pull scope/findings/checklist from server
+rt leave                               # disconnect from server
 ` + "```" + `
 
 ### Dashboard

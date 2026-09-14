@@ -23,6 +23,11 @@ Use 'rt leave' to disconnect.`,
 		apiKey, _ := cmd.Flags().GetString("key")
 		operator, _ := cmd.Flags().GetString("operator")
 		insecure, _ := cmd.Flags().GetBool("insecure")
+		if !insecure {
+			if v := os.Getenv("RT_INSECURE"); v == "1" || v == "true" {
+				insecure = true
+			}
+		}
 
 		if serverURL == "" {
 			serverURL = os.Getenv("RT_SERVER")
@@ -131,5 +136,5 @@ func init() {
 	joinCmd.Flags().String("server", "", "Central RT server URL (or RT_SERVER env)")
 	joinCmd.Flags().String("key", "", "API key (or RT_API_KEY env)")
 	joinCmd.Flags().String("operator", "", "Operator name")
-	joinCmd.Flags().Bool("insecure", false, "Skip TLS verification")
+	joinCmd.Flags().Bool("insecure", false, "Skip TLS verification (or RT_INSECURE=1)")
 }
