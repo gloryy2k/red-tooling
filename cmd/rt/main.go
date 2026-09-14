@@ -9,7 +9,7 @@ import (
 	"github.com/user/rt/internal/db"
 )
 
-var Version = "3.3.1"
+var Version = "3.4.0"
 
 var rootCmd = &cobra.Command{
 	Use:     "rt",
