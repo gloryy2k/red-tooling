@@ -27,7 +27,7 @@ var newCmd = &cobra.Command{
 			return fmt.Errorf("engagement %q already exists", name)
 		}
 
-		// Passphrase
+		// Passphrase — skip confirm when provided via RT_PASSPHRASE
 		pass1, err := readPassphrase("Enter passphrase: ")
 		if err != nil {
 			return fmt.Errorf("read passphrase: %w", err)
@@ -36,13 +36,14 @@ var newCmd = &cobra.Command{
 			return fmt.Errorf("passphrase must be at least 8 characters")
 		}
 
-		pass2, err := readPassphrase("Confirm passphrase: ")
-		if err != nil {
-			return fmt.Errorf("read confirmation: %w", err)
-		}
-
-		if string(pass1) != string(pass2) {
-			return fmt.Errorf("passphrases do not match")
+		if os.Getenv("RT_PASSPHRASE") == "" {
+			pass2, err := readPassphrase("Confirm passphrase: ")
+			if err != nil {
+				return fmt.Errorf("read confirmation: %w", err)
+			}
+			if string(pass1) != string(pass2) {
+				return fmt.Errorf("passphrases do not match")
+			}
 		}
 
 		// Create database

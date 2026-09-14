@@ -24,17 +24,18 @@ type Finding struct {
 	VerifiedBy     string
 	VerifiedAt     string
 	Notes          string
+	Host           string
 }
 
 // Create inserts a new finding.
-func Create(db *sql.DB, engID, title, description, priority, operator string, evidenceIDs []int64, mitre []string) (*Finding, error) {
+func Create(db *sql.DB, engID, title, description, priority, operator, host string, evidenceIDs []int64, mitre []string) (*Finding, error) {
 	evJSON, _ := json.Marshal(evidenceIDs)
 	mitreJSON, _ := json.Marshal(mitre)
 
 	res, err := db.Exec(
-		`INSERT INTO findings (engagement_id, title, description, priority, evidence_ids, mitre)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		engID, title, description, priority, string(evJSON), string(mitreJSON),
+		`INSERT INTO findings (engagement_id, title, description, priority, evidence_ids, mitre, host)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		engID, title, description, priority, string(evJSON), string(mitreJSON), host,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create finding: %w", err)
@@ -52,6 +53,7 @@ func Create(db *sql.DB, engID, title, description, priority, operator string, ev
 		Verified:     "unverified",
 		EvidenceIDs:  evidenceIDs,
 		Mitre:        mitre,
+		Host:         host,
 	}, nil
 }
 
@@ -61,7 +63,7 @@ func List(db *sql.DB, engID string) ([]Finding, error) {
 		`SELECT id, engagement_id, title, COALESCE(description,''), COALESCE(priority,''),
 		        verified, COALESCE(recommendation,''), COALESCE(evidence_ids,'[]'),
 		        COALESCE(mitre,'[]'), created_at, COALESCE(verified_by,''),
-		        COALESCE(verified_at,''), COALESCE(notes,'')
+		        COALESCE(verified_at,''), COALESCE(notes,''), COALESCE(host,'')
 		 FROM findings WHERE engagement_id = ? ORDER BY
 		   CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END,
 		   created_at DESC`, engID)
@@ -76,7 +78,7 @@ func List(db *sql.DB, engID string) ([]Finding, error) {
 		var evJSON, mitreJSON string
 		if err := rows.Scan(&f.ID, &f.EngagementID, &f.Title, &f.Description,
 			&f.Priority, &f.Verified, &f.Recommendation, &evJSON,
-			&mitreJSON, &f.CreatedAt, &f.VerifiedBy, &f.VerifiedAt, &f.Notes); err != nil {
+			&mitreJSON, &f.CreatedAt, &f.VerifiedBy, &f.VerifiedAt, &f.Notes, &f.Host); err != nil {
 			return nil, err
 		}
 		json.Unmarshal([]byte(evJSON), &f.EvidenceIDs)
@@ -94,11 +96,11 @@ func Get(db *sql.DB, id int64) (*Finding, error) {
 		`SELECT id, engagement_id, title, COALESCE(description,''), COALESCE(priority,''),
 		        verified, COALESCE(recommendation,''), COALESCE(evidence_ids,'[]'),
 		        COALESCE(mitre,'[]'), created_at, COALESCE(verified_by,''),
-		        COALESCE(verified_at,''), COALESCE(notes,'')
+		        COALESCE(verified_at,''), COALESCE(notes,''), COALESCE(host,'')
 		 FROM findings WHERE id = ?`, id,
 	).Scan(&f.ID, &f.EngagementID, &f.Title, &f.Description,
 		&f.Priority, &f.Verified, &f.Recommendation, &evJSON,
-		&mitreJSON, &f.CreatedAt, &f.VerifiedBy, &f.VerifiedAt, &f.Notes)
+		&mitreJSON, &f.CreatedAt, &f.VerifiedBy, &f.VerifiedAt, &f.Notes, &f.Host)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +185,7 @@ func Merge(db *sql.DB, ids []int64, newTitle, operator string) (*Finding, error)
 	mergedDesc := strings.Join(descriptions, "\n---\n")
 
 	// Create merged finding
-	merged, err := Create(db, engID, newTitle, mergedDesc, bestPriority, operator, allEvIDs, allMitre)
+	merged, err := Create(db, engID, newTitle, mergedDesc, bestPriority, operator, "", allEvIDs, allMitre)
 	if err != nil {
 		return nil, err
 	}
@@ -230,10 +232,10 @@ func Delete(db *sql.DB, id int64, operator string) error {
 }
 
 // Update modifies a finding's title, description, priority, and MITRE mappings.
-func Update(db *sql.DB, id int64, title, description, priority string, mitre []string, operator string) error {
+func Update(db *sql.DB, id int64, title, description, priority, host string, mitre []string, operator string) error {
 	mitreJSON, _ := json.Marshal(mitre)
-	_, err := db.Exec(`UPDATE findings SET title = ?, description = ?, priority = ?, mitre = ? WHERE id = ?`,
-		title, description, priority, string(mitreJSON), id)
+	_, err := db.Exec(`UPDATE findings SET title = ?, description = ?, priority = ?, mitre = ?, host = ? WHERE id = ?`,
+		title, description, priority, string(mitreJSON), host, id)
 	if err != nil {
 		return fmt.Errorf("update finding: %w", err)
 	}

@@ -269,6 +269,8 @@ func migrate(db *sql.DB) error {
 	db.Exec(`ALTER TABLE evidence ADD COLUMN host TEXT DEFAULT ''`)
 	// Add roe column to engagements if missing (added in P1.7)
 	db.Exec(`ALTER TABLE engagements ADD COLUMN roe TEXT DEFAULT ''`)
+	// Add host column to findings if missing (added in v3.2.0)
+	db.Exec(`ALTER TABLE findings ADD COLUMN host TEXT DEFAULT ''`)
 	return nil
 }
 
@@ -367,7 +369,8 @@ CREATE TABLE IF NOT EXISTS findings (
     created_at TEXT DEFAULT (datetime('now')),
     verified_by TEXT,
     verified_at TEXT,
-    notes TEXT
+    notes TEXT,
+    host TEXT
 );
 
 CREATE TABLE IF NOT EXISTS checklist (

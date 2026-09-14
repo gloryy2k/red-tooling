@@ -75,7 +75,7 @@ rt bookmark "come back later"          # bookmark for follow-up
 
 ### Findings & Credentials
 ` + "```bash" + `
-rt finding "Title" --priority critical --mitre T1190
+rt finding "Title" --priority critical --mitre T1190 --host 10.0.0.1
 rt verify-finding <id> confirmed
 rt recommend <id> "Fix description"
 rt cred <user> <secret> --host <ip>    # store credential
@@ -108,19 +108,17 @@ rt export csv -o findings.csv
 rt export mitre -o navigator.json
 ` + "```" + `
 
-### Playbooks (Agent Mode)
+### Remote Mode (central server)
 ` + "```bash" + `
-rt agent-run recon --target 10.10.10.0/24
-rt agent-run web-recon --target https://target.com
-rt agent-run ad-recon --target 10.10.10.1 --domain acme.local
-rt agent-run kerberos-attacks --target <dc> --domain <dom> --var username=<u> --var password=<p>
-rt agent-run post-exploit --target <ip> --var username=<u> --var password=<p>
-rt agent-run lateral-movement --target <subnet> --var username=<u> --var password=<p>
-rt agent-run internal-enum --target <subnet>
-rt agent-run bloodhound --target <dc> --var domain=<d> --var username=<u> --var password=<p>
-rt agent-run cleanup --target <ip>
-rt agent-exec "nmap -sV 10.10.10.1"   # single command as agent
-rt agent-list                          # list available playbooks
+# Set env vars once — all rt commands read them automatically:
+export RT_SERVER="https://server:8443"
+export RT_API_KEY="rt_key_..."
+export RT_INSECURE=1                   # for self-signed certs
+
+rt remote-session start                # start remote session
+rt remote-exec --session <id> -- <cmd> # exec + submit evidence
+rt remote-session stop --session <id>  # stop session
+rt sync                                # pull scope/findings/checklist from server
 ` + "```" + `
 
 ### Dashboard
@@ -132,11 +130,38 @@ rt serve --listen localhost:8080       # start web dashboard
 
 1. **Always capture evidence** — use ` + "`rt exec <cmd>`" + ` instead of raw commands
 2. **Auto-flag** handles tagging — RT detects credentials, admin access, vulns, etc.
-3. **Create findings** when you discover vulnerabilities — include priority + MITRE
+3. **Create findings for ALL security-significant discoveries** — not just exploitable vulns (see below)
 4. **Mark scope** as tested after scanning each host
-5. **Use playbooks** for structured phases (recon, enum, exploit, post-exploit)
+5. **Store credentials** immediately when found — ` + "`rt cred <user> <secret> --host <ip>`" + `
 6. **Check progress** with ` + "`rt standup`" + ` and ` + "`rt scope-untested`" + `
 7. **Generate report** when phase is complete
+
+## When to Create Findings (IMPORTANT)
+
+Create a finding for every discovery with security significance. Findings populate the ATT&CK map on the dashboard — if you skip creating a finding, the discovery is invisible on the kill chain.
+
+**ALWAYS create a finding for:**
+- Exploitable vulnerabilities (critical/high) — T1190, T1068, T1548, etc.
+- Credential discoveries — dumped hashes (T1003), kerberoast (T1558), cleartext creds (T1552)
+- Privilege escalation paths — misconfigs, unquoted services (T1574), token impersonation (T1134)
+- Significant recon discoveries — domain admin enumeration (T1087), network share access (T1135), trust relationships
+- Lateral movement success — pass-the-hash (T1550), RDP/SMB access (T1021)
+- Persistence mechanisms found — scheduled tasks (T1053), services (T1543), registry keys (T1547)
+- Defense evasion — AV disabled (T1562), AMSI bypass, logging gaps (T1070)
+- Misconfigurations with security impact — weak ACLs, GPO abuse paths, certificate template vulns
+
+**DO NOT create a finding for:**
+- Basic connectivity checks (ping, curl health checks)
+- Normal enumeration with no security-relevant result (e.g. ` + "`nmap`" + ` that only finds expected open ports)
+- Failed exploitation attempts (log as evidence only)
+- Standard tool output with no actionable information
+
+**Priority guide:**
+- **critical** — direct path to domain admin / full compromise
+- **high** — exploitable vuln, credential access, privilege escalation
+- **medium** — significant misconfiguration, information disclosure with impact
+- **low** — informational finding with security relevance (weak policy, missing hardening)
+- **info** — notable observation for the report (architecture notes, attack surface mapping)
 
 ## Auto-Flag Engine
 
@@ -169,10 +194,14 @@ Execute network recon against the target scope.
 
 1. Check scope: ` + "`rt scope-list`" + `
 2. Pick untested hosts: ` + "`rt scope-untested`" + `
-3. Run playbook: ` + "`rt agent-run recon --target <ip/cidr>`" + `
-4. Or manual: ` + "`rt exec nmap -sV -sC <target>`" + `
-5. Import results: ` + "`rt import {work_dir}/nmap.xml`" + `
-6. Mark hosts tested: ` + "`rt scope-tested <ip>`" + `
+3. Run scans: ` + "`rt exec nmap -sV -sC <target>`" + `
+4. Import results: ` + "`rt import {work_dir}/nmap.xml`" + `
+5. Mark hosts tested: ` + "`rt scope-tested <ip>`" + `
+6. **Create findings for significant discoveries:**
+   - Interesting services found → ` + "`rt finding \"SMB signing disabled on DC\" --priority medium --mitre T1557`" + `
+   - User/group enumeration → ` + "`rt finding \"Domain Admins enumerated\" --priority low --mitre T1087`" + `
+   - Network shares accessible → ` + "`rt finding \"Writable network share found\" --priority medium --mitre T1135`" + `
+   - Do NOT create findings for routine port scans with no security-relevant result
 7. Check checklist: ` + "`rt checklist`" + `
 `,
 		"exploit.md": `# Exploit Target

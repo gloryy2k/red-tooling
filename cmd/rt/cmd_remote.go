@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,28 +16,67 @@ import (
 	"github.com/user/rt/internal/remote"
 )
 
+func buildRemoteClient(cmd *cobra.Command) (*remote.Client, error) {
+	serverURL, _ := cmd.Flags().GetString("server")
+	apiKey, _ := cmd.Flags().GetString("key")
+	insecure, _ := cmd.Flags().GetBool("insecure")
+	timeout, _ := cmd.Flags().GetInt("timeout")
+
+	if serverURL == "" {
+		serverURL = os.Getenv("RT_SERVER")
+	}
+	if apiKey == "" {
+		apiKey = os.Getenv("RT_API_KEY")
+	}
+	if serverURL == "" || apiKey == "" {
+		return nil, fmt.Errorf("--server and --key required (or set RT_SERVER / RT_API_KEY)")
+	}
+
+	if !insecure {
+		if v := os.Getenv("RT_INSECURE"); v == "1" || v == "true" {
+			insecure = true
+		}
+	}
+
+	if timeout == 0 {
+		if v := os.Getenv("RT_TIMEOUT"); v != "" {
+			if t, err := strconv.Atoi(v); err == nil {
+				timeout = t
+			}
+		}
+		if timeout == 0 {
+			timeout = 10
+		}
+	}
+
+	client := remote.NewClient(serverURL, apiKey)
+	client.HTTPClient.Timeout = time.Duration(timeout) * time.Second
+
+	if insecure {
+		client.HTTPClient.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+	}
+
+	return client, nil
+}
+
 var remoteExecCmd = &cobra.Command{
 	Use:   "remote-exec <command>",
 	Short: "Execute a command and submit evidence to a central RT server",
 	Long: `Run a command locally and POST the result to a remote RT server.
-Requires --server and --key flags (or RT_SERVER / RT_API_KEY env vars).`,
+Requires --server and --key flags (or RT_SERVER / RT_API_KEY env vars).
+Set RT_INSECURE=1 to skip TLS verification for self-signed certs.
+Set RT_TIMEOUT=N to set connection timeout in seconds (default: 10).`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		serverURL, _ := cmd.Flags().GetString("server")
-		apiKey, _ := cmd.Flags().GetString("key")
+		client, err := buildRemoteClient(cmd)
+		if err != nil {
+			return err
+		}
+
 		sessionID, _ := cmd.Flags().GetString("session")
 		operator, _ := cmd.Flags().GetString("operator")
-		insecure, _ := cmd.Flags().GetBool("insecure")
-
-		if serverURL == "" {
-			serverURL = os.Getenv("RT_SERVER")
-		}
-		if apiKey == "" {
-			apiKey = os.Getenv("RT_API_KEY")
-		}
-		if serverURL == "" || apiKey == "" {
-			return fmt.Errorf("--server and --key required (or set RT_SERVER / RT_API_KEY)")
-		}
 
 		if operator == "" {
 			operator = os.Getenv("USER")
@@ -45,18 +85,8 @@ Requires --server and --key flags (or RT_SERVER / RT_API_KEY env vars).`,
 			}
 		}
 
-		client := remote.NewClient(serverURL, apiKey)
-		if insecure {
-			client.HTTPClient = &http.Client{
-				Timeout: 30 * time.Second,
-				Transport: &http.Transport{
-					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-				},
-			}
-		}
-
 		if err := client.Ping(); err != nil {
-			return fmt.Errorf("server connection failed: %w", err)
+			return fmt.Errorf("server unreachable at %s — check firewall/VPN: %w", client.BaseURL, err)
 		}
 
 		if sessionID == "" {
@@ -101,10 +131,8 @@ Requires --server and --key flags (or RT_SERVER / RT_API_KEY env vars).`,
 		}
 
 		outStr := string(output)
-		if len(outStr) > 500 {
-			fmt.Printf("  [output] %s...\n", outStr[:500])
-		} else if outStr != "" {
-			fmt.Printf("  [output] %s\n", outStr)
+		if outStr != "" {
+			fmt.Printf("  [output]\n%s\n", outStr)
 		}
 
 		resp, err := client.SubmitEvidence(remote.EvidenceReq{
@@ -131,37 +159,19 @@ var remoteSessionCmd = &cobra.Command{
 	Short: "Manage a remote session on the central server",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		serverURL, _ := cmd.Flags().GetString("server")
-		apiKey, _ := cmd.Flags().GetString("key")
+		client, err := buildRemoteClient(cmd)
+		if err != nil {
+			return err
+		}
+
 		sessionID, _ := cmd.Flags().GetString("session")
 		sessionName, _ := cmd.Flags().GetString("name")
 		operator, _ := cmd.Flags().GetString("operator")
-		insecure, _ := cmd.Flags().GetBool("insecure")
-
-		if serverURL == "" {
-			serverURL = os.Getenv("RT_SERVER")
-		}
-		if apiKey == "" {
-			apiKey = os.Getenv("RT_API_KEY")
-		}
-		if serverURL == "" || apiKey == "" {
-			return fmt.Errorf("--server and --key required (or set RT_SERVER / RT_API_KEY)")
-		}
 
 		if operator == "" {
 			operator = os.Getenv("USER")
 			if operator == "" {
 				operator = os.Getenv("USERNAME")
-			}
-		}
-
-		client := remote.NewClient(serverURL, apiKey)
-		if insecure {
-			client.HTTPClient = &http.Client{
-				Timeout: 30 * time.Second,
-				Transport: &http.Transport{
-					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-				},
 			}
 		}
 
@@ -180,7 +190,7 @@ var remoteSessionCmd = &cobra.Command{
 				Operator: operator,
 			})
 			if err != nil {
-				return err
+				return fmt.Errorf("server unreachable at %s — check firewall/VPN: %w", client.BaseURL, err)
 			}
 			fmt.Printf("  Session started: %s\n", sessionID)
 			fmt.Printf("  Use this ID with: rt remote-exec --session %s ...\n", sessionID)
@@ -208,7 +218,8 @@ func init() {
 		cmd.Flags().String("key", "", "API key for authentication (or RT_API_KEY env)")
 		cmd.Flags().String("session", "", "Session ID to use")
 		cmd.Flags().String("operator", "", "Operator name")
-		cmd.Flags().Bool("insecure", false, "Skip TLS verification (self-signed certs)")
+		cmd.Flags().Bool("insecure", false, "Skip TLS verification (or RT_INSECURE=1)")
+		cmd.Flags().Int("timeout", 0, "Connection timeout in seconds (default 10, or RT_TIMEOUT)")
 	}
 	remoteSessionCmd.Flags().String("name", "", "Session name (for start)")
 }

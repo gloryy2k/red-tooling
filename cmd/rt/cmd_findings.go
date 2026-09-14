@@ -28,6 +28,7 @@ var findingCmd = &cobra.Command{
 		priority, _ := cmd.Flags().GetString("priority")
 		evFlag, _ := cmd.Flags().GetString("evidence")
 		mitreFlag, _ := cmd.Flags().GetString("mitre")
+		host, _ := cmd.Flags().GetString("host")
 
 		var evIDs []int64
 		if evFlag != "" {
@@ -51,7 +52,7 @@ var findingCmd = &cobra.Command{
 			priority = "medium"
 		}
 
-		f, err := findings.Create(database, engID, title, desc, priority, operator, evIDs, mitre)
+		f, err := findings.Create(database, engID, title, desc, priority, operator, host, evIDs, mitre)
 		if err != nil {
 			return err
 		}
@@ -275,6 +276,7 @@ func init() {
 	findingCmd.Flags().String("evidence", "", "Comma-separated evidence IDs")
 	findingCmd.Flags().String("mitre", "", "Comma-separated MITRE ATT&CK IDs")
 	findingCmd.Flags().String("note", "", "PoC notes (appears in report Proof of Concept section)")
+	findingCmd.Flags().String("host", "", "Target host IP/hostname for this finding")
 
 	verifyFindingCmd.Flags().String("note", "", "Verification note")
 	verifyFindingCmd.Flags().String("screenshot", "", "Screenshot file to attach as verification evidence")

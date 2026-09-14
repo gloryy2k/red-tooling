@@ -10,7 +10,7 @@ rt unlock                                          # unlock encrypted db
 rt start                                           # start interactive capture session
 rt stop                                            # stop session + lock db
 rt exec <command>                                  # capture single command
-rt finding "Title" --priority high --mitre T1190   # create finding
+rt finding "Title" --priority high --mitre T1190 --host 10.0.0.1  # create finding
 rt verify-finding <id> confirmed                   # verify a finding
 rt recommend <id> "Fix description"                # add recommendation
 rt cred <user> <secret> --host <ip>                # store credential

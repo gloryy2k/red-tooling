@@ -104,6 +104,7 @@ func (s *Server) handleCreateFinding(w http.ResponseWriter, r *http.Request) {
 		Priority    string   `json:"priority"`
 		Mitre       []string `json:"mitre"`
 		EvidenceIDs []int64  `json:"evidence_ids"`
+		Host        string   `json:"host"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonErr(w, "invalid JSON", 400)
@@ -114,7 +115,7 @@ func (s *Server) handleCreateFinding(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	op := operatorFromCtx(r)
-	f, err := findings.Create(s.DB, s.EngID, req.Title, req.Description, req.Priority, op, req.EvidenceIDs, req.Mitre)
+	f, err := findings.Create(s.DB, s.EngID, req.Title, req.Description, req.Priority, op, req.Host, req.EvidenceIDs, req.Mitre)
 	if err != nil {
 		jsonErr(w, err.Error(), 500)
 		return
@@ -171,12 +172,13 @@ func (s *Server) handleFindingAction(w http.ResponseWriter, r *http.Request) {
 			Description string   `json:"description"`
 			Priority    string   `json:"priority"`
 			Mitre       []string `json:"mitre"`
+			Host        string   `json:"host"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			jsonErr(w, "invalid JSON", 400)
 			return
 		}
-		if err := findings.Update(s.DB, id, req.Title, req.Description, req.Priority, req.Mitre, op); err != nil {
+		if err := findings.Update(s.DB, id, req.Title, req.Description, req.Priority, req.Host, req.Mitre, op); err != nil {
 			jsonErr(w, err.Error(), 500)
 			return
 		}

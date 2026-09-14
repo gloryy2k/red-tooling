@@ -286,8 +286,8 @@ tr.clickable:hover td{background:var(--surface-2)}
 .detail-actions{display:flex;flex-wrap:wrap;gap:6px;padding:14px 16px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--surface)}
 
 /* === OUTPUT VIEWER === */
-.output-box{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-family:var(--font-mono);font-size:11px;max-height:200px;overflow-y:auto;white-space:pre-wrap;color:var(--text-2);line-height:1.6;word-break:break-all}
-.output-box.expanded{max-height:none}
+.output-box{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-family:var(--font-mono);font-size:11px;overflow-y:auto;white-space:pre-wrap;color:var(--text-2);line-height:1.6;word-break:break-all}
+.output-box.collapsed{max-height:200px}
 
 /* === FILTER BAR === */
 .filter-bar{display:flex;gap:6px;margin-bottom:14px;align-items:center;flex-wrap:wrap}
@@ -533,7 +533,7 @@ tr.clickable:hover td{background:var(--surface-2)}
     </div>
   </div>
   <div class="sidebar-footer">
-    <div style="font-size:11px;color:var(--muted)">RT v2.0 — <span id="footer-time"></span></div>
+    <div style="font-size:11px;color:var(--muted)">RT v3.2.0 — <span id="footer-time"></span></div>
   </div>
 </div>
 
@@ -651,6 +651,7 @@ tr.clickable:hover td{background:var(--surface-2)}
 <!-- ===== ATT&CK MAP ===== -->
 <div id="pg-attack" class="page">
   <div class="page-hdr"><h2>MITRE ATT&amp;CK Kill Chain</h2><button class="btn-docs" onclick="showDocs('attack')" style="margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> Docs</button></div>
+  <div class="filter-bar"><select id="attack-host-filter" style="padding:4px 8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-size:12px" onchange="loadAttackMap()"><option value="">All hosts</option></select></div>
   <div id="attack-map" style="overflow-x:auto"></div>
 </div>
 
@@ -972,7 +973,7 @@ async function showEvidenceDetail(id){
     '<div class="detail-field"><div class="lbl">Hash</div><div class="val mono" style="font-size:10px;color:var(--muted);word-break:break-all">'+esc(ev.Hash)+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Attachments ('+att.length+')</div><div class="val">'+renderAttachments(att)+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Output</div><div class="output-box" id="ev-output">'+esc(ev.Output||'(no output)')+'</div>'+
-    '<button class="btn sm ghost" style="margin-top:4px" onclick="document.getElementById(\'ev-output\').classList.toggle(\'expanded\');this.textContent=this.textContent===\'Expand\'?\'Collapse\':\'Expand\'">Expand</button></div>';
+    '<button class="btn sm ghost" style="margin-top:4px" onclick="document.getElementById(\'ev-output\').classList.toggle(\'collapsed\');this.textContent=this.textContent===\'Collapse\'?\'Expand\':\'Collapse\'">Collapse</button></div>';
   document.getElementById('detail-title').textContent='Evidence #'+id;
   document.getElementById('detail-actions').innerHTML=
     '<button class="btn sm" onclick="toast(\'Tag added\',\'success\')">+ Tag</button>'+
@@ -1024,6 +1025,7 @@ async function showFindingDetail(id){
     '<div style="margin-bottom:12px">'+sevBadge(f.Priority)+' '+(f.Mitre||[]).map(m=>'<span class="mitre" style="margin-left:6px">'+esc(m)+'</span>').join('')+'</div>'+
     '<div class="detail-field"><div class="lbl">Title</div><div class="val" style="font-weight:500">'+esc(f.Title)+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Description</div><div class="val" style="color:var(--text-2)">'+(esc(f.Description)||'<em style="color:var(--muted)">No description</em>')+'</div></div>'+
+    '<div class="detail-field"><div class="lbl">Host</div><div class="val">'+(f.Host?'<span class="tag">'+esc(f.Host)+'</span>':'<span style="color:var(--muted)">—</span>')+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Status</div><div class="val">'+statusSpan(f.Verified)+(f.VerifiedBy?' by '+esc(f.VerifiedBy):'')+(f.VerifiedAt?' at '+fmtDate(f.VerifiedAt):'')+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Verification note</div><div class="val" style="color:var(--text-2)">'+(esc(f.Notes)||'<em style="color:var(--muted)">—</em>')+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Linked evidence <button class="btn sm" style="margin-left:8px;padding:2px 8px;font-size:11px" onclick="showLinkEvidence('+f.ID+')">+ Link</button></div><div class="val" id="linked-ev-'+f.ID+'">'+(f.EvidenceIDs&&f.EvidenceIDs.length?f.EvidenceIDs.map(eid=>'<span style="display:inline-flex;align-items:center;gap:2px;margin-right:8px"><a class="link" onclick="showEvidenceDetail('+eid+')">#'+eid+'</a><button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:0 2px" title="Unlink" onclick="unlinkEvidence('+f.ID+','+eid+')">&times;</button></span>').join(''):'<em style="color:var(--muted)">none</em>')+'</div></div>'+
@@ -1046,10 +1048,11 @@ function showNewFinding(){
   showModal('New finding',
     '<label>Title</label><input id="m-title" placeholder="Finding title">'+
     '<label>Priority</label><select id="m-priority"><option>critical</option><option>high</option><option selected>medium</option><option>low</option><option>info</option></select>'+
+    '<label>Host</label><input id="m-host" placeholder="Target host (e.g. 10.10.10.1)">'+
     '<label>Description</label><textarea id="m-desc" placeholder="Describe the vulnerability"></textarea>'+
     '<label>MITRE ATT&CK</label><input id="m-mitre" placeholder="T1190, T1210">'
   ,async()=>{
-    await post('/api/findings',{title:gv('m-title'),priority:gv('m-priority'),description:gv('m-desc'),mitre:gv('m-mitre').split(',').map(s=>s.trim()).filter(Boolean)});
+    await post('/api/findings',{title:gv('m-title'),priority:gv('m-priority'),description:gv('m-desc'),host:gv('m-host'),mitre:gv('m-mitre').split(',').map(s=>s.trim()).filter(Boolean)});
     closeModal();loadFindings();toast('Finding created','success');
   });
 }
@@ -1076,10 +1079,11 @@ async function showEditFinding(id){
   showModal('Edit finding #'+id,
     '<label>Title</label><input id="m-etitle" value="'+esc(f.Title)+'">'+
     '<label>Priority</label><select id="m-epri"><option'+(f.Priority==='critical'?' selected':'')+'>critical</option><option'+(f.Priority==='high'?' selected':'')+'>high</option><option'+(f.Priority==='medium'?' selected':'')+'>medium</option><option'+(f.Priority==='low'?' selected':'')+'>low</option><option'+(f.Priority==='info'?' selected':'')+'>info</option></select>'+
+    '<label>Host</label><input id="m-ehost" value="'+esc(f.Host||'')+'">'+
     '<label>Description</label><textarea id="m-edesc">'+esc(f.Description)+'</textarea>'+
     '<label>MITRE</label><input id="m-emitre" value="'+(f.Mitre||[]).join(', ')+'">'
   ,async()=>{
-    await put('/api/findings/'+id,{title:gv('m-etitle'),priority:gv('m-epri'),description:gv('m-edesc'),mitre:gv('m-emitre').split(',').map(s=>s.trim()).filter(Boolean)});
+    await put('/api/findings/'+id,{title:gv('m-etitle'),priority:gv('m-epri'),description:gv('m-edesc'),host:gv('m-ehost'),mitre:gv('m-emitre').split(',').map(s=>s.trim()).filter(Boolean)});
     closeModal();loadFindings();showFindingDetail(id);toast('Finding updated','success');
   });
 }
@@ -1701,6 +1705,22 @@ function getTacticForTechnique(tid){
 async function loadAttackMap(){
   var findings=await api('/api/findings');
   if(!findings)findings=[];
+  // Populate host filter from scope
+  var sel=document.getElementById('attack-host-filter');
+  var curHost=sel.value;
+  if(sel.options.length<=1){
+    var scope=await api('/api/scope');
+    if(scope&&scope.length){
+      var hosts=[...new Set(scope.map(function(s){return s.Host}))].sort();
+      hosts.forEach(function(h){sel.innerHTML+='<option value="'+esc(h)+'">'+esc(h)+'</option>';});
+      if(curHost)sel.value=curHost;
+    }
+  }
+  // Filter by host if selected
+  var hostFilter=sel.value;
+  if(hostFilter){
+    findings=findings.filter(function(f){return (f.Host||'')===hostFilter});
+  }
   var mapped={};
   TACTICS.forEach(t=>{mapped[t.id]=[]});
   findings.forEach(f=>{
@@ -1708,14 +1728,14 @@ async function loadAttackMap(){
     f.Mitre.forEach(tid=>{
       var tactic=getTacticForTechnique(tid);
       if(tactic&&mapped[tactic]){
-        mapped[tactic].push({technique:tid,title:f.Title,priority:f.Priority,verified:f.Verified,id:f.ID});
+        mapped[tactic].push({technique:tid,title:f.Title,priority:f.Priority,verified:f.Verified,id:f.ID,host:f.Host||''});
       }
     });
   });
   var totalMapped=0;
   TACTICS.forEach(t=>{totalMapped+=mapped[t.id].length});
   var html='<div class="attack-legend">';
-  html+='<div class="leg-item"><strong>'+totalMapped+'</strong> techniques mapped from <strong>'+findings.length+'</strong> findings</div>';
+  html+='<div class="leg-item"><strong>'+totalMapped+'</strong> techniques mapped from <strong>'+findings.length+'</strong> findings'+(hostFilter?' on <strong>'+esc(hostFilter)+'</strong>':'')+'</div>';
   html+='<div class="leg-item"><div class="leg-dot" style="background:var(--red)"></div> Critical</div>';
   html+='<div class="leg-item"><div class="leg-dot" style="background:var(--orange)"></div> High</div>';
   html+='<div class="leg-item"><div class="leg-dot" style="background:var(--yellow)"></div> Medium</div>';

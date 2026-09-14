@@ -22,8 +22,12 @@ func getStdinReader() *bufio.Reader {
 	return stdinReader
 }
 
-// readPassphrase reads a passphrase from terminal (hidden) or stdin (piped).
+// readPassphrase reads from RT_PASSPHRASE env var first, then terminal, then stdin.
 func readPassphrase(prompt string) ([]byte, error) {
+	if envPass := os.Getenv("RT_PASSPHRASE"); envPass != "" {
+		return []byte(envPass), nil
+	}
+
 	fmt.Print(prompt)
 
 	fd := int(os.Stdin.Fd())

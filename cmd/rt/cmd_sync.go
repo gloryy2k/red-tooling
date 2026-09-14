@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -20,10 +21,22 @@ Requires an active connection (rt join) or --server/--key flags.`,
 		apiKey, _ := cmd.Flags().GetString("key")
 		insecure, _ := cmd.Flags().GetBool("insecure")
 
+		if serverURL == "" {
+			serverURL = os.Getenv("RT_SERVER")
+		}
+		if apiKey == "" {
+			apiKey = os.Getenv("RT_API_KEY")
+		}
+		if !insecure {
+			if v := os.Getenv("RT_INSECURE"); v == "1" || v == "true" {
+				insecure = true
+			}
+		}
+
 		if serverURL == "" || apiKey == "" {
 			state, err := remote.LoadState()
 			if err != nil {
-				return fmt.Errorf("not joined to a server — use 'rt join' or pass --server/--key")
+				return fmt.Errorf("not joined to a server — use 'rt join', set RT_SERVER/RT_API_KEY, or pass --server/--key")
 			}
 			if serverURL == "" {
 				serverURL = state.ServerURL

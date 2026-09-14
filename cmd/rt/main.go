@@ -9,10 +9,13 @@ import (
 	"github.com/user/rt/internal/db"
 )
 
+var Version = "3.2.0"
+
 var rootCmd = &cobra.Command{
-	Use:   "rt",
-	Short: "RT — Red Team Evidence Logger",
-	Long:  `RT captures evidence automatically during red team engagements and generates reports. "Hack more, document less."`,
+	Use:     "rt",
+	Short:   "RT — Red Team Evidence Logger",
+	Long:    `RT captures evidence automatically during red team engagements and generates reports. "Hack more, document less."`,
+	Version: Version,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		config.EnsureDirs()
 	},
@@ -80,6 +83,7 @@ scopeCmd,
 		joinCmd,
 		leaveCmd,
 		syncCmd,
+		schemaCmd,
 		initWorkspaceCmd,
 		removeWorkspaceCmd,
 	)

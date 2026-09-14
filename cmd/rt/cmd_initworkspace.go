@@ -210,37 +210,37 @@ rt stop && rt lock
 
 **In remote mode, you do NOT create a local engagement.** All evidence goes directly to the central server. The dashboard is already running on the server — do NOT start ` + "`rt serve`" + ` locally.
 
-### Setup (once per shell)
+### Setup (once per shell — all rt commands read these automatically)
 ` + "```bash" + `
 export RT_SERVER="<server-url>"       # e.g. https://10.0.0.5:8443
 export RT_API_KEY="<api-key>"         # e.g. rt_key_xxx...
-# For self-signed certs:
-export RT_INSECURE=1
+export RT_INSECURE=1                  # for self-signed certs
 ` + "```" + `
+**After setting these env vars, you do NOT need --server/--key/--insecure flags.**
 
 ### Start a remote session
 ` + "```bash" + `
-rt remote-session start --server $RT_SERVER --key $RT_API_KEY --operator $(whoami)
+rt remote-session start --operator $(whoami)
 # Note the session ID printed (e.g. remote-a1b2c3d4)
 ` + "```" + `
 
 ### Test — ALL commands through rt remote-exec
 ` + "```bash" + `
-rt remote-exec --server $RT_SERVER --key $RT_API_KEY --session <session-id> -- <command>
+rt remote-exec --session <session-id> -- <command>
 # Examples:
-rt remote-exec --server $RT_SERVER --key $RT_API_KEY -- nmap -sV <target>
-rt remote-exec --server $RT_SERVER --key $RT_API_KEY -- curl -s http://<target>/api
+rt remote-exec --session <session-id> -- nmap -sV <target>
+rt remote-exec --session <session-id> -- curl -s http://<target>/api
 ` + "```" + `
 
 ### Get engagement context from server
 ` + "```bash" + `
-rt sync --server $RT_SERVER --key $RT_API_KEY
+rt sync
 # Shows: scope hosts, existing findings, checklist progress
 ` + "```" + `
 
 ### Stop session when done
 ` + "```bash" + `
-rt remote-session stop --session <session-id> --server $RT_SERVER --key $RT_API_KEY
+rt remote-session stop --session <session-id>
 ` + "```" + `
 
 ### What you CANNOT do in remote mode
@@ -272,9 +272,9 @@ Tell the user: "Evidence has been submitted to the central server at <server-url
 
 | Action | Local Mode | Remote Mode |
 |--------|-----------|-------------|
-| Execute + capture | ` + "`rt exec -- <cmd>`" + ` | ` + "`rt remote-exec --server $RT_SERVER --key $RT_API_KEY -- <cmd>`" + ` |
-| Start session | ` + "`rt start`" + ` | ` + "`rt remote-session start --server ... --key ...`" + ` |
-| Stop session | ` + "`rt stop`" + ` | ` + "`rt remote-session stop --session <id> ...`" + ` |
+| Execute + capture | ` + "`rt exec -- <cmd>`" + ` | ` + "`rt remote-exec --session <id> -- <cmd>`" + ` |
+| Start session | ` + "`rt start`" + ` | ` + "`rt remote-session start`" + ` |
+| Stop session | ` + "`rt stop`" + ` | ` + "`rt remote-session stop --session <id>`" + ` |
 | Create finding | ` + "`rt finding \"Title\" --priority high`" + ` | Use server dashboard |
 | Store credential | ` + "`rt cred <user> <secret>`" + ` | Auto-extracted from evidence on server |
 | Sync context | N/A | ` + "`rt sync --server ... --key ...`" + ` |
@@ -323,10 +323,18 @@ rt serve --listen localhost:7777 &
 
 ### Step 3: Test (ALL commands through rt exec)
 - ` + "`rt exec -- <cmd>`" + ` — every target command (use ` + "`--`" + ` before flags)
-- ` + "`rt finding \"Title\" --priority <sev> --mitre <id>`" + ` — every vuln found
+- ` + "`rt finding \"Title\" --priority <sev> --mitre <id>`" + ` — every security-significant discovery
 - ` + "`rt cred <user> <secret> --host <ip>`" + ` — every credential found
 - ` + "`rt milestone \"Description\"`" + ` — every major achievement
 - ` + "`rt screenshot <file>`" + ` — MANDATORY for web vulns
+
+**When to create findings** (findings populate the ATT&CK kill chain map):
+- Exploitable vulns → critical/high with MITRE ID
+- Credential dumps, kerberoast → high, T1003/T1558
+- Privilege escalation paths → high, T1548/T1068
+- Significant recon (DA enum, share access, trust abuse) → medium/low with MITRE ID
+- Misconfigurations with security impact → medium
+- Do NOT create findings for basic ping/curl, routine port scans, or failed attempts
 
 ### Step 4: Wrap Up (MANDATORY)
 ` + "```bash" + `
@@ -350,40 +358,40 @@ rt stop && rt lock
 
 **You do NOT create a local engagement. Evidence goes directly to the central server.**
 
-### Step 1: Set environment variables
+### Step 1: Set environment variables (ONCE — all rt commands read these automatically)
 ` + "```bash" + `
 export RT_SERVER="<server-url>"       # from the user's input
 export RT_API_KEY="<api-key>"         # from the user's input
-# For self-signed certs (common in pentest labs):
-export RT_INSECURE=1
+export RT_INSECURE=1                  # for self-signed certs (common in pentest labs)
 ` + "```" + `
+**After setting these, you do NOT need --server/--key/--insecure flags on any rt command.**
 
 ### Step 2: Start remote session
 ` + "```bash" + `
-rt remote-session start --server $RT_SERVER --key $RT_API_KEY --operator $(whoami) --insecure
+rt remote-session start --operator $(whoami)
 # Save the session ID that is printed!
 ` + "```" + `
 
 ### Step 3: Get context from server
 ` + "```bash" + `
-rt sync --server $RT_SERVER --key $RT_API_KEY --insecure
+rt sync
 # Shows scope, existing findings, checklist — understand what is already done
 ` + "```" + `
 
 ### Step 4: Test (ALL commands through rt remote-exec)
 ` + "```bash" + `
-# Every command against the target:
-rt remote-exec --server $RT_SERVER --key $RT_API_KEY --session <session-id> --insecure -- <command>
+# Every command against the target — no need to repeat server/key flags:
+rt remote-exec --session <session-id> -- <command>
 
 # Examples:
-rt remote-exec --server $RT_SERVER --key $RT_API_KEY --session <session-id> --insecure -- nmap -sV <target>
-rt remote-exec --server $RT_SERVER --key $RT_API_KEY --session <session-id> --insecure -- curl -s http://<target>/api
-rt remote-exec --server $RT_SERVER --key $RT_API_KEY --session <session-id> --insecure -- gobuster dir -u http://<target> -w /usr/share/wordlists/common.txt
+rt remote-exec --session <session-id> -- nmap -sV <target>
+rt remote-exec --session <session-id> -- curl -s http://<target>/api
+rt remote-exec --session <session-id> -- gobuster dir -u http://<target> -w /usr/share/wordlists/common.txt
 ` + "```" + `
 
 ### Step 5: Wrap up
 ` + "```bash" + `
-rt remote-session stop --session <session-id> --server $RT_SERVER --key $RT_API_KEY --insecure
+rt remote-session stop --session <session-id>
 ` + "```" + `
 **Tell the user**: "All evidence has been submitted to the central server at <server-url>. Open the dashboard there to review findings, manage credentials, and generate the report."
 
