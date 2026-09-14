@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -102,7 +103,7 @@ func execRemoteOnly(command string) error {
 		}
 	}
 
-	outputStr := outputBuf.String()
+	outputStr := stripANSI(outputBuf.String())
 	if len(outputStr) > 1024*1024 {
 		outputStr = outputStr[:1024*1024] + "\n[output truncated at 1MB]"
 	}
@@ -147,6 +148,12 @@ func shellJoinArgs(args []string) string {
 		}
 	}
 	return strings.Join(parts, " ")
+}
+
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]|\x01|\x02`)
+
+func stripANSI(s string) string {
+	return ansiRe.ReplaceAllString(s, "")
 }
 
 func init() {

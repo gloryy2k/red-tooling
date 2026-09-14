@@ -140,7 +140,7 @@ func ExecInteractive(db *sql.DB, sessionID, engID, operator, command string) err
 		}
 	}
 
-	outputStr := outputBuf.String()
+	outputStr := stripANSI(outputBuf.String())
 	if len(outputStr) > 1024*1024 {
 		outputStr = outputStr[:1024*1024] + "\n[output truncated at 1MB]"
 	}
@@ -244,6 +244,12 @@ func autoAddScope(db *sql.DB, engID, command, operator string) {
 			fmt.Printf("  [scope] Auto-added %d host(s): %s\n", added, strings.Join(newHosts, ", "))
 		}
 	}
+}
+
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]|\x01|\x02`)
+
+func stripANSI(s string) string {
+	return ansiRe.ReplaceAllString(s, "")
 }
 
 func getShell() string {

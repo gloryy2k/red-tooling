@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -27,6 +28,10 @@ func jsonResp(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
 }
+
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]|\x01|\x02`)
+
+func stripANSI(s string) string { return ansiRe.ReplaceAllString(s, "") }
 
 func jsonErr(w http.ResponseWriter, msg string, code int) {
 	w.Header().Set("Content-Type", "application/json")
@@ -313,7 +318,8 @@ func (s *Server) handleSubmitEvidence(w http.ResponseWriter, r *http.Request) {
 		op = operatorFromCtx(r)
 	}
 
-	ev, err := evidence.Insert(s.DB, req.SessionID, req.Action, req.Input, req.Output,
+	cleanOutput := stripANSI(req.Output)
+	ev, err := evidence.Insert(s.DB, req.SessionID, req.Action, req.Input, cleanOutput,
 		req.ExitCode, req.DurationMs, req.CWD, req.Tags, req.Priority, op)
 	if err != nil {
 		jsonErr(w, err.Error(), 500)

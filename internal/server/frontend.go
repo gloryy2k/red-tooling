@@ -764,7 +764,8 @@ async function logout(){
   location.href='/login';
 }
 
-function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function stripAnsi(s){return s?s.replace(/\x1b\[[0-9;]*[a-zA-Z]|\x01|\x02/g,''):''}
+function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=stripAnsi(s);return d.innerHTML}
 function fmtTime(ts){try{const d=new Date(ts);return d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}catch(e){return ts||''}}
 function fmtDate(ts){try{return new Date(ts).toLocaleString('sv').replace('T',' ')}catch(e){return ts||''}}
 
