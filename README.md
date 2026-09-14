@@ -2,66 +2,68 @@
 
 **Hack more, document less.** RT is a single-binary CLI tool that auto-captures evidence during red team engagements, manages findings, and generates professional pentest reports.
 
-![Overview](docs/screenshots/overview.png)
+## Quick Start — AI Agent Mode
 
-## Features
+The recommended way to use RT: a central server + Claude Code agent. You set up the server and workspace once, then just give the agent a target — it knows exactly what to do.
 
-- **Automatic evidence capture** — every command + output recorded with SHA-256 hash chain integrity
-- **AES-256-GCM encryption** — database encrypted at rest with Argon2id KDF
-- **Auto-flag engine** — 12 built-in rules detect credentials, admin access, ADCS, kerberoast, etc.
-- **Auto-cred parser** — extracts credentials from secretsdump/mimikatz/kerberoast output
-- **Finding management** — create, verify, merge findings with MITRE ATT&CK mapping + PoC notes
-- **Report generation** — professional HTML pentest reports with executive summary, risk distribution, and technical details
-- **Export formats** — Ghostwriter JSON, CSV, MITRE ATT&CK Navigator layer, full JSON
-- **Web dashboard** — real-time SPA with WebSocket live feed, MITRE ATT&CK map, network topology
-- **RBAC** — 4 roles (lead/operator/reviewer/viewer) with API key auth
-- **Setup token** — auto-generated token printed on server start for instant lead access
-- **Per-page docs** — built-in documentation modal on every dashboard page
-- **AI agent integration** — auto-generates CLAUDE.md + pentest skills per engagement
-- **Tool import** — nmap XML, Nuclei JSON, CSV, raw text
-- **Scope tracking** — host management with tested/untested status
-- **PTES checklist** — 27-item template with check-off tracking
-- **Enterprise central server** — remote agents POST evidence via REST API
-
-## Dashboard
-
-### Evidence Timeline
-34 evidence entries with auto-flagging, credential detection, and MITRE tagging:
-
-![Timeline](docs/screenshots/timeline.png)
-
-### Findings
-All findings verified and confirmed with severity badges and MITRE ATT&CK mappings:
-
-![Findings](docs/screenshots/findings.png)
-
-### Credentials
-Extracted credentials with masked secrets and reveal/copy actions:
-
-![Credentials](docs/screenshots/credentials.png)
-
-### PTES Checklist
-Track assessment progress with the built-in 27-item PTES checklist:
-
-![Checklist](docs/screenshots/checklist.png)
-
-### Scope Coverage
-Track which hosts have been tested:
-
-![Scope](docs/screenshots/scope.png)
-
-### Report
-Professional HTML pentest report with executive summary, risk distribution, findings with PoC notes, and evidence timeline:
-
-![Report](docs/screenshots/report.png)
-
-## Quick Start
-
-### Build
+### 1. Start the server
 
 ```bash
 go build -o rt ./cmd/rt/
+rt new "ACME-2026" --client "Acme Corp"
+rt unlock
+rt serve --listen 0.0.0.0:8443
 ```
+
+The server prints a setup token on first start — use it to create your lead account in the dashboard.
+
+### 2. Create an operator + generate workspace
+
+```bash
+rt operator-add agent-1 operator
+# → API Key: rt_key_a8Kd9m...
+
+rt init-workspace
+# → generates CLAUDE.md + pentest skills (.claude/commands/) in your workspace
+```
+
+`rt init-workspace` creates agent instructions with 7 finding categories, finding lifecycle, scope management, credential handling, and collaboration procedures. This is the "brain" — the agent reads CLAUDE.md and knows how to use every RT command without being told.
+
+### 3. Open Claude Code and prompt
+
+```bash
+claude
+```
+
+Then just tell the agent:
+
+```
+connect to https://10.10.10.100:8443 with key rt_key_a8Kd9m..., target is 10.10.10.1
+```
+
+The agent will:
+- `rt join` to the server (credentials saved for next time — future sessions just need `rt join`)
+- Run recon, enumerate services, attempt exploits via `rt exec`
+- Auto-create findings, log credentials, track scope
+- All evidence auto-synced to the dashboard in real-time
+
+If the server goes unreachable, evidence is queued locally at `~/.rt/.sync-queue.json` and auto-drained on reconnect.
+
+### Available agent skills
+
+After `rt init-workspace`, these slash commands are available in Claude Code:
+
+| Skill | Description |
+|-------|-------------|
+| `/recon` | Network reconnaissance — scan, import, mark scope |
+| `/exploit` | Exploitation — capture exploit, create finding, store creds |
+| `/post-exploit` | Post-exploitation — privesc, lateral movement, persistence |
+| `/report` | Generate engagement report + exports |
+| `/standup` | Daily progress summary |
+
+## Quick Start — CLI Mode
+
+For manual use without a central server.
 
 ### Create an engagement
 
@@ -91,6 +93,17 @@ rt recommend 1 "Use parameterized queries"
 rt findings                 # list all findings
 ```
 
+### Scope & checklist
+
+```bash
+rt scope 10.10.10.1,10.10.10.2,10.10.10.3
+rt scope-tested 10.10.10.1
+rt scope-untested
+rt checklist-load ptes
+rt check 1
+rt standup                  # daily progress summary
+```
+
 ### Generate reports
 
 ```bash
@@ -109,58 +122,19 @@ rt export mitre -o navigator.json   # ATT&CK Navigator layer
 rt export json -o full.json
 ```
 
-### Web dashboard
-
-```bash
-rt serve --listen localhost:8080
-# opens dashboard with live evidence feed, findings, timeline
-```
-
-### Scope & checklist
-
-```bash
-rt scope 10.10.10.1,10.10.10.2,10.10.10.3
-rt scope-tested 10.10.10.1
-rt scope-untested
-rt checklist-load ptes
-rt check 1
-rt standup                  # daily progress summary
-```
-
-### AI Agent Integration
-
-RT auto-generates a CLAUDE.md and pentest skills for each engagement, allowing AI agents (Claude Code) to run structured penetration tests:
-
-```bash
-rt init-workspace           # generates CLAUDE.md + skills in workspace
-# Agent can now use /pentest skill to run a full assessment
-```
-
-### Enterprise / Remote Agents
-
-```bash
-# Start central server
-rt serve --listen 0.0.0.0:8443
-
-# Create operators with API keys
-rt operator-add alice operator
-# → API Key: rt_key_a8Kd9m...
-
-# On remote machine: start session + submit evidence
-export RT_SERVER=https://10.10.10.100:8443
-export RT_API_KEY=rt_key_a8Kd9m...
-rt remote-session start
-rt remote-exec "whoami"
-rt remote-exec "secretsdump.py ACME/admin@10.10.10.1"
-rt remote-session stop --session <ID>
-```
-
 ### Import external tool output
 
 ```bash
 rt import nmap-results.xml
 rt import nuclei-output.json
 rt import ports.csv
+```
+
+### Web dashboard
+
+```bash
+rt serve --listen localhost:8080
+# opens dashboard with live evidence feed, findings, timeline
 ```
 
 ## Architecture
@@ -195,6 +169,7 @@ rt import ports.csv
 ```
 cmd/rt/             CLI commands (one file per command group)
 internal/
+  agentctx/         auto-generated CLAUDE.md + skills for AI agents
   attachments/      file BLOB storage
   audit/            immutable audit log
   capture/          command execution + evidence recording
@@ -228,6 +203,8 @@ internal/
 | `rt unlock` / `rt lock` | Decrypt/encrypt database |
 | `rt start` / `rt stop` | Start/stop capture session |
 | `rt exec` | Capture a single command |
+| `rt join` / `rt leave` | Join/leave remote server (auto-sync mode) |
+| `rt sync` | Fetch engagement context from remote server |
 | `rt tag` / `rt note` / `rt milestone` / `rt bookmark` | Annotate evidence |
 | `rt timeline` | Show evidence timeline |
 | `rt finding` / `rt findings` | Create/list findings |
@@ -241,10 +218,10 @@ internal/
 | `rt delete` / `rt redact` | Soft-delete/redact evidence |
 | `rt report` | Generate HTML/Markdown report |
 | `rt export` | Export (ghostwriter/csv/json/mitre) |
-| `rt serve` | Start web dashboard |
+| `rt serve` | Start web dashboard + central server |
 | `rt operator-add` / `rt operator-list` | Manage RBAC operators |
-| `rt remote-exec` | Execute command + submit evidence to central server |
-| `rt remote-session` | Start/stop remote session on central server |
+| `rt remote-exec` | Execute command + submit evidence (legacy) |
+| `rt remote-session` | Start/stop remote session (legacy) |
 | `rt scope` / `rt scope-list` / `rt scope-tested` / `rt scope-untested` | Scope management |
 | `rt checklist` / `rt checklist-load` / `rt check` / `rt uncheck` | Checklist tracking |
 | `rt search` | Search evidence by text |
@@ -266,8 +243,65 @@ internal/
 - Web dashboard: auto TLS (ECDSA P-256), CSP headers, per-IP rate limiting (60 req/min)
 - API keys: SHA-256 hashed storage, 192-bit entropy
 - Central server REST API: RBAC-protected POST /api/evidence, /api/sessions, /api/creds
-- Remote agents: env var auth (RT_SERVER, RT_API_KEY), optional --insecure for self-signed certs
+- Remote agents: persistent config at `~/.rt/server.json` (or env var RT_SERVER/RT_API_KEY), --insecure for self-signed certs
+- ANSI escape code stripping at capture, API, and display layers (defense-in-depth)
 - Read-only SQL query mode with keyword safety guards
+
+## Features
+
+- **Automatic evidence capture** — every command + output recorded with SHA-256 hash chain integrity
+- **AES-256-GCM encryption** — database encrypted at rest with Argon2id KDF
+- **Auto-flag engine** — 12 built-in rules detect credentials, admin access, ADCS, kerberoast, etc.
+- **Auto-cred parser** — extracts credentials from secretsdump/mimikatz/kerberoast output
+- **Finding management** — create, verify, merge findings with MITRE ATT&CK mapping + PoC notes
+- **Report generation** — professional HTML pentest reports with executive summary, risk distribution, and technical details
+- **Export formats** — Ghostwriter JSON, CSV, MITRE ATT&CK Navigator layer, full JSON
+- **Web dashboard** — real-time SPA with WebSocket live feed, MITRE ATT&CK map, network topology
+- **RBAC** — 4 roles (lead/operator/reviewer/viewer) with API key auth
+- **Setup token** — auto-generated token printed on server start for instant lead access
+- **Per-page docs** — built-in documentation modal on every dashboard page
+- **AI agent integration** — auto-generates CLAUDE.md + pentest skills per engagement
+- **Tool import** — nmap XML, Nuclei JSON, CSV, raw text
+- **Scope tracking** — host management with tested/untested status
+- **PTES checklist** — 27-item template with check-off tracking
+- **Remote-only mode** — `rt join` + `rt exec` auto-syncs to server, no local engagement needed
+- **Persistent server config** — server credentials remembered after first `rt join`, reconnect with just `rt join`
+- **Offline evidence queue** — evidence queued locally when server unreachable, auto-drained on reconnect
+- **ANSI stripping** — clean evidence output from colored terminal tools (evil-winrm, crackmapexec, etc.)
+- **Resizable detail panel** — drag to resize evidence output, copy-to-clipboard, fullscreen toggle
+- **Enterprise central server** — remote agents POST evidence via REST API
+
+## Dashboard
+
+### Evidence Timeline
+34 evidence entries with auto-flagging, credential detection, and MITRE tagging:
+
+![Timeline](docs/screenshots/timeline.png)
+
+### Findings
+All findings verified and confirmed with severity badges and MITRE ATT&CK mappings:
+
+![Findings](docs/screenshots/findings.png)
+
+### Credentials
+Extracted credentials with masked secrets and reveal/copy actions:
+
+![Credentials](docs/screenshots/credentials.png)
+
+### PTES Checklist
+Track assessment progress with the built-in 27-item PTES checklist:
+
+![Checklist](docs/screenshots/checklist.png)
+
+### Scope Coverage
+Track which hosts have been tested:
+
+![Scope](docs/screenshots/scope.png)
+
+### Report
+Professional HTML pentest report with executive summary, risk distribution, findings with PoC notes, and evidence timeline:
+
+![Report](docs/screenshots/report.png)
 
 ## Requirements
 
