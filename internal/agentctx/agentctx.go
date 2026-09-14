@@ -110,18 +110,23 @@ rt export mitre -o navigator.json
 
 ### Remote Mode (central server)
 ` + "```bash" + `
-# Set env vars once — all rt commands read them automatically:
-export RT_SERVER="https://server:8443"
-export RT_API_KEY="rt_key_..."
-export RT_INSECURE=1                   # for self-signed certs
+# First time only — join with flags:
+rt join --server https://server:8443 --key rt_key_... --insecure
 
-rt join                                # join server (auto-sync all rt exec)
+# After joining, ALL rt commands auto-sync. No env vars needed:
 rt exec <command>                      # runs locally + auto-syncs to server
 rt finding "Title" --priority high --mitre T1190 --host 10.0.0.1  # syncs to server
 rt cred <user> <secret> --host <ip>    # syncs to server
 rt sync                                # pull scope/findings/checklist from server
+rt status                              # check connection + queue status
 rt leave                               # disconnect from server
+
+# Rejoining later (RT remembers server from ~/.rt/server.json):
+rt join                                # no flags needed
 ` + "```" + `
+
+**IMPORTANT: After ` + "`rt join`" + `, do NOT export RT_SERVER/RT_API_KEY/RT_INSECURE.
+RT persists connection state — just run ` + "`rt exec`" + ` directly. No local engagement needed.**
 
 ### Dashboard
 ` + "```bash" + `
@@ -130,13 +135,13 @@ rt serve --listen localhost:8080       # start web dashboard
 
 ## Workflow for Agents
 
-1. **Always capture evidence** — use ` + "`rt exec <cmd>`" + ` instead of raw commands
-2. **Auto-flag** handles tagging — RT detects credentials, admin access, vulns, etc.
-3. **Create findings for ALL security-significant discoveries** — not just exploitable vulns (see below)
-4. **Mark scope** as tested after scanning each host
+1. **Join once, then forget env vars** — after ` + "`rt join --server ... --key ... --insecure`" + `, just run ` + "`rt exec`" + ` directly. Never re-export RT_SERVER/RT_API_KEY.
+2. **Always capture evidence** — use ` + "`rt exec <cmd>`" + ` instead of raw commands
+3. **Auto-flag** handles tagging — RT detects credentials, admin access, vulns, etc.
+4. **Create findings for ALL security-significant discoveries** — not just exploitable vulns (see below)
 5. **Store credentials** immediately when found — ` + "`rt cred <user> <secret> --host <ip>`" + `
-6. **Check progress** with ` + "`rt standup`" + ` and ` + "`rt scope-untested`" + `
-7. **Generate report** when phase is complete
+6. **Pipe long output** — use ` + "`rt exec -- cmd | head -50`" + ` or ` + "`| grep -v FAILURE`" + ` to reduce noise
+7. **Check progress** with ` + "`rt status`" + ` (connection + queue) or ` + "`rt sync`" + ` (full context from server)
 
 ## When to Create Findings (IMPORTANT)
 
