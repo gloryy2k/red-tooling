@@ -35,8 +35,25 @@ Use 'rt leave' to disconnect.`,
 		if apiKey == "" {
 			apiKey = os.Getenv("RT_API_KEY")
 		}
+
 		if serverURL == "" || apiKey == "" {
-			return fmt.Errorf("--server and --key required (or set RT_SERVER / RT_API_KEY)")
+			if saved, err := remote.LoadSavedServer(); err == nil {
+				if serverURL == "" {
+					serverURL = saved.ServerURL
+				}
+				if apiKey == "" {
+					apiKey = saved.APIKey
+				}
+				if operator == "" && saved.Operator != "" {
+					operator = saved.Operator
+				}
+				if !insecure && saved.Insecure {
+					insecure = true
+				}
+			}
+		}
+		if serverURL == "" || apiKey == "" {
+			return fmt.Errorf("--server and --key required (or set RT_SERVER / RT_API_KEY)\n  After first successful join, 'rt join' remembers the server.")
 		}
 
 		if operator == "" {
@@ -88,6 +105,13 @@ Use 'rt leave' to disconnect.`,
 		if err := remote.SaveState(state); err != nil {
 			return fmt.Errorf("save connection state: %w", err)
 		}
+
+		remote.SaveServer(&remote.SavedServer{
+			ServerURL: serverURL,
+			APIKey:    apiKey,
+			Operator:  operator,
+			Insecure:  insecure,
+		})
 
 		fmt.Printf("  Joined server: %s\n", serverURL)
 		fmt.Printf("  Session: %s\n", sessionID)

@@ -48,3 +48,34 @@ func IsJoined() bool {
 	_, err := os.Stat(statePath())
 	return err == nil
 }
+
+type SavedServer struct {
+	ServerURL string `json:"server_url"`
+	APIKey    string `json:"api_key"`
+	Operator  string `json:"operator"`
+	Insecure  bool   `json:"insecure"`
+}
+
+func savedServerPath() string {
+	return filepath.Join(config.Home(), "server.json")
+}
+
+func SaveServer(s *SavedServer) error {
+	data, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(savedServerPath(), data, 0600)
+}
+
+func LoadSavedServer() (*SavedServer, error) {
+	data, err := os.ReadFile(savedServerPath())
+	if err != nil {
+		return nil, err
+	}
+	var s SavedServer
+	if err := json.Unmarshal(data, &s); err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
