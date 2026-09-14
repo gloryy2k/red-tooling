@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -85,11 +86,12 @@ func execRemoteOnly(command string) error {
 		flag = "-c"
 	}
 
+	var outputBuf strings.Builder
 	execCmd := exec.Command(shell, flag, command)
 	execCmd.Dir = cwd
 	execCmd.Stdin = os.Stdin
-	execCmd.Stdout = os.Stdout
-	execCmd.Stderr = os.Stderr
+	execCmd.Stdout = io.MultiWriter(os.Stdout, &outputBuf)
+	execCmd.Stderr = io.MultiWriter(os.Stderr, &outputBuf)
 
 	runErr := execCmd.Run()
 	duration := time.Since(start)
@@ -100,11 +102,16 @@ func execRemoteOnly(command string) error {
 		}
 	}
 
+	outputStr := outputBuf.String()
+	if len(outputStr) > 1024*1024 {
+		outputStr = outputStr[:1024*1024] + "\n[output truncated at 1MB]"
+	}
+
 	evReq := remote.EvidenceReq{
 		SessionID:  state.SessionID,
 		Action:     "exec",
 		Input:      command,
-		Output:     "",
+		Output:     outputStr,
 		ExitCode:   exitCode,
 		DurationMs: int(duration.Milliseconds()),
 		CWD:        cwd,
