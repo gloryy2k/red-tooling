@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/user/rt/internal/importer"
@@ -17,7 +16,7 @@ var importCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 
 		operator := getOperator()
 		result, err := importer.Import(database, engID, args[0], operator)

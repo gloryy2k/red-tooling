@@ -110,7 +110,7 @@ var credsCmd = &cobra.Command{
 			return nil
 		}
 
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 		show, _ := cmd.Flags().GetBool("show")
 		csv, _ := cmd.Flags().GetBool("csv")
 

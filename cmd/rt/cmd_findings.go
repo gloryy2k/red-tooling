@@ -58,7 +58,7 @@ var findingCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 
 		f, err := findings.Create(database, engID, title, desc, priority, operator, host, evIDs, mitre)
 		if err != nil {
@@ -117,7 +117,7 @@ var findingsCmd = &cobra.Command{
 			fmt.Printf("\n  %d finding(s) (remote)\n\n", len(list))
 			return nil
 		}
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 
 		list, err := findings.List(database, engID)
 		if err != nil {

@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/user/rt/internal/audit"
 )
@@ -72,6 +73,7 @@ func hashAPIKey(key string) string {
 
 // Add creates a new operator with an auto-generated API key.
 func Add(db *sql.DB, engID, operatorID, role, creator string) (*Operator, error) {
+	operatorID = strings.TrimSpace(operatorID)
 	if !validRoles[role] {
 		return nil, fmt.Errorf("invalid role %q. Valid: lead, operator, reviewer, viewer", role)
 	}

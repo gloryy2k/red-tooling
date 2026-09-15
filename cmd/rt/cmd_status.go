@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/user/rt/internal/config"
@@ -55,7 +54,7 @@ var statusCmd = &cobra.Command{
 			return err
 		}
 
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 
 		sess, _ := session.GetActive(database, engID)
 		if sess != nil {

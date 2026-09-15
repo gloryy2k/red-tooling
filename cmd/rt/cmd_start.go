@@ -31,7 +31,7 @@ var startCmd = &cobra.Command{
 		}
 
 		// Check for existing active session
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 		existing, _ := session.GetActive(database, engID)
 		if existing != nil {
 			return fmt.Errorf("session %q is already active. Run 'rt stop' first", existing.Name)

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/user/rt/internal/checklist"
@@ -52,7 +51,7 @@ var checklistCmd = &cobra.Command{
 			}
 			return nil
 		}
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 
 		items, err := checklist.List(database, engID)
 		if err != nil {
@@ -112,7 +111,7 @@ var checklistLoadCmd = &cobra.Command{
 			fmt.Printf("  [remote] Loaded %s checklist\n", preset)
 			return nil
 		}
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 
 		count, err := checklist.LoadPTES(database, engID)
 		if err != nil {
@@ -143,7 +142,7 @@ var checklistAddCmd = &cobra.Command{
 			fmt.Printf("  [remote] Added: [%s] %s\n", args[0], args[1])
 			return nil
 		}
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 
 		if err := checklist.Add(database, engID, args[0], args[1]); err != nil {
 			return err

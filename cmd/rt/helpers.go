@@ -3,10 +3,12 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/user/rt/internal/config"
 	"github.com/user/rt/internal/crypto"
 	"github.com/user/rt/internal/db"
+	"github.com/user/rt/internal/engagement"
 )
 
 // requireDB returns an open database for the active engagement.
@@ -44,4 +46,13 @@ func requireDB() (*sql.DB, string, error) {
 	}
 	crypto.ZeroBytes(pass)
 	return database, engName, nil
+}
+
+// resolveEngID reads the actual engagement ID from the database.
+// Falls back to kebab-case conversion of the name if the DB has no engagement record.
+func resolveEngID(database *sql.DB, engName string) string {
+	if eng, err := engagement.GetFirst(database); err == nil && eng.ID != "" {
+		return eng.ID
+	}
+	return strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
 }

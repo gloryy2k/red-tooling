@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -56,7 +55,7 @@ var scopeCmd = &cobra.Command{
 			return nil
 		}
 
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 		operator := getOperator()
 		count, err := scope.Add(database, engID, hostList, operator)
 		if err != nil {
@@ -111,7 +110,7 @@ var scopeListCmd = &cobra.Command{
 			return nil
 		}
 
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 		hosts, err := scope.List(database, engID)
 		if err != nil {
 			return err
@@ -161,7 +160,7 @@ var scopeTestedCmd = &cobra.Command{
 			return nil
 		}
 
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 		operator := getOperator()
 		sessionID, _ := cmd.Flags().GetString("session")
 
@@ -219,7 +218,7 @@ var scopeUntestedCmd = &cobra.Command{
 			return nil
 		}
 
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 		hosts, err := scope.Untested(database, engID)
 		if err != nil {
 			return err

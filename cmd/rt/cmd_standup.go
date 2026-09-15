@@ -70,7 +70,7 @@ var standupCmd = &cobra.Command{
 			fmt.Println()
 			return nil
 		}
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 
 		fmt.Println("  === Daily Standup ===")
 		fmt.Println()
@@ -138,7 +138,7 @@ var timeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 
 		rows, err := database.Query(
 			`SELECT name, source, started_at, COALESCE(ended_at, ''), status

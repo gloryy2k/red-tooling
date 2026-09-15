@@ -76,7 +76,7 @@ func getActiveSessionDB() (*sql.DB, string, string, error) {
 		return nil, "", "", err
 	}
 
-	engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+	engID := resolveEngID(database, engName)
 
 	sessID := session.GetActiveSessionID()
 	if sessID == "" {

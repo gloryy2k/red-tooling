@@ -18,7 +18,7 @@ var serveCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 
 		listen, _ := cmd.Flags().GetString("listen")
 		tlsCert, _ := cmd.Flags().GetString("tls-cert")
@@ -50,7 +50,7 @@ var operatorAddCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 
 		name := args[0]
 		role, _ := cmd.Flags().GetString("role")
@@ -79,7 +79,7 @@ var operatorListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 
 		ops, err := operatorPkg.List(database, engID)
 		if err != nil {
@@ -120,7 +120,7 @@ var operatorRotateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 
 		name := args[0]
 		creator := getOperator()

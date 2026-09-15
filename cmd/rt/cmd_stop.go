@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/user/rt/internal/db"
@@ -19,7 +18,7 @@ var stopCmd = &cobra.Command{
 			return err
 		}
 
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 		sess, err := session.GetActive(database, engID)
 		if err != nil {
 			return err

@@ -95,7 +95,7 @@ var attachmentsCmd = &cobra.Command{
 				return err
 			}
 		} else {
-			engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+			engID := resolveEngID(database, engName)
 			list, err = attachments.ListByEngagement(database, engID)
 			if err != nil {
 				return err

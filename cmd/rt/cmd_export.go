@@ -18,7 +18,7 @@ var exportCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 		operator := getOperator()
 		outFile, _ := cmd.Flags().GetString("output")
 

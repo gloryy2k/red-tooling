@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/user/rt/internal/remote"
@@ -62,7 +61,7 @@ var reportCmd = &cobra.Command{
 			}
 			return nil
 		}
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 
 		opts := report.Options{
 			ExecOnly:     execFlag,

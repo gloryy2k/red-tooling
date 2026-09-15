@@ -79,6 +79,18 @@ func Update(db *sql.DB, id, name, client, startDate, endDate, status, operator s
 	return nil
 }
 
+// GetFirst returns the first (usually only) engagement in the database.
+func GetFirst(db *sql.DB) (*Engagement, error) {
+	row := db.QueryRow(
+		`SELECT id, name, COALESCE(client,''), status, created_at, COALESCE(start_date,''), COALESCE(end_date,'')
+		 FROM engagements LIMIT 1`)
+	var e Engagement
+	if err := row.Scan(&e.ID, &e.Name, &e.Client, &e.Status, &e.CreatedAt, &e.StartDate, &e.EndDate); err != nil {
+		return nil, err
+	}
+	return &e, nil
+}
+
 // GetROE returns the rules of engagement text.
 func GetROE(db *sql.DB, id string) string {
 	var roe sql.NullString

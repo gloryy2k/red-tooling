@@ -63,7 +63,7 @@ var timelineCmd = &cobra.Command{
 			return nil
 		}
 
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 		limit, _ := cmd.Flags().GetInt("limit")
 		milestonesOnly, _ := cmd.Flags().GetBool("milestones")
 

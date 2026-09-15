@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/user/rt/internal/evidence"
@@ -17,7 +16,7 @@ var verifyChainCmd = &cobra.Command{
 			return err
 		}
 
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		engID := resolveEngID(database, engName)
 		results, err := evidence.VerifyChain(database, engID)
 		if err != nil {
 			return err
