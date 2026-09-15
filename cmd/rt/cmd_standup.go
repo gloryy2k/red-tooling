@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/user/rt/internal/audit"
 	"github.com/user/rt/internal/checklist"
+	"github.com/user/rt/internal/remote"
 	"github.com/user/rt/internal/scope"
 )
 
@@ -19,14 +20,61 @@ var standupCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		database, engName, err := requireDB()
 		if err != nil {
-			return err
+			if !remote.IsJoined() {
+				return fmt.Errorf("no active engagement and not joined to a server — use 'rt join' first")
+			}
+			client, _, cerr := remoteClientFromState()
+			if cerr != nil {
+				return cerr
+			}
+			ctx, cerr := client.GetContext()
+			if cerr != nil {
+				return fmt.Errorf("get context (remote): %w", cerr)
+			}
+			fmt.Println("  === Daily Standup (remote) ===")
+			fmt.Println()
+			if eng := ctx.Engagement; eng != nil {
+				fmt.Printf("  Engagement: %v (%v)\n", eng["name"], eng["status"])
+			}
+			if s := ctx.Scope; s != nil {
+				total := toInt(s["total"])
+				tested := toInt(s["tested"])
+				if total > 0 {
+					pct := float64(tested) / float64(total) * 100
+					fmt.Printf("  Scope:     %d/%d hosts tested (%.0f%%)\n", tested, total, pct)
+				} else {
+					fmt.Println("  Scope:     no hosts defined")
+				}
+			}
+			if cl := ctx.Checklist; cl != nil {
+				total := toInt(cl["total"])
+				done := toInt(cl["done"])
+				if total > 0 {
+					pct := float64(done) / float64(total) * 100
+					fmt.Printf("  Checklist: %d/%d items done (%.0f%%)\n", done, total, pct)
+				} else {
+					fmt.Println("  Checklist: no items defined")
+				}
+			}
+			fTotal := len(ctx.Findings)
+			fCritical, fHigh := 0, 0
+			for _, f := range ctx.Findings {
+				switch fmt.Sprintf("%v", f["priority"]) {
+				case "critical":
+					fCritical++
+				case "high":
+					fHigh++
+				}
+			}
+			fmt.Printf("  Findings:  %d total (%d critical, %d high)\n", fTotal, fCritical, fHigh)
+			fmt.Println()
+			return nil
 		}
 		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
 
 		fmt.Println("  === Daily Standup ===")
 		fmt.Println()
 
-		// Scope progress
 		total, tested := scope.Stats(database, engID)
 		if total > 0 {
 			pct := float64(tested) / float64(total) * 100
@@ -35,7 +83,6 @@ var standupCmd = &cobra.Command{
 			fmt.Println("  Scope:     no hosts defined")
 		}
 
-		// Checklist progress
 		done, clTotal := checklist.Stats(database, engID)
 		if clTotal > 0 {
 			pct := float64(done) / float64(clTotal) * 100
@@ -44,7 +91,6 @@ var standupCmd = &cobra.Command{
 			fmt.Println("  Checklist: no items defined")
 		}
 
-		// Evidence count last 24h
 		var evCount int
 		database.QueryRow(
 			`SELECT COUNT(*) FROM evidence e
@@ -53,19 +99,16 @@ var standupCmd = &cobra.Command{
 			 AND e.timestamp >= datetime('now', '-1 day')`, engID).Scan(&evCount)
 		fmt.Printf("  Evidence:  %d entries in last 24h\n", evCount)
 
-		// Findings summary
 		var fTotal, fCritical, fHigh int
 		database.QueryRow(`SELECT COUNT(*) FROM findings WHERE engagement_id = ?`, engID).Scan(&fTotal)
 		database.QueryRow(`SELECT COUNT(*) FROM findings WHERE engagement_id = ? AND priority = 'critical'`, engID).Scan(&fCritical)
 		database.QueryRow(`SELECT COUNT(*) FROM findings WHERE engagement_id = ? AND priority = 'high'`, engID).Scan(&fHigh)
 		fmt.Printf("  Findings:  %d total (%d critical, %d high)\n", fTotal, fCritical, fHigh)
 
-		// Credentials found
 		var credCount int
 		database.QueryRow(`SELECT COUNT(*) FROM credentials WHERE engagement_id = ?`, engID).Scan(&credCount)
 		fmt.Printf("  Creds:     %d captured\n", credCount)
 
-		// Recent audit activity
 		fmt.Println()
 		fmt.Println("  --- Recent Activity ---")
 		rows, err := database.Query(

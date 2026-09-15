@@ -6,18 +6,65 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/user/rt/internal/audit"
+	"github.com/user/rt/internal/remote"
 )
 
 var auditCmd = &cobra.Command{
 	Use:   "audit",
 	Short: "View audit log",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		limit, _ := cmd.Flags().GetInt("limit")
+
 		database, _, err := requireDB()
 		if err != nil {
-			return err
+			if !remote.IsJoined() {
+				return fmt.Errorf("no active engagement and not joined to a server — use 'rt join' first")
+			}
+			client, _, cerr := remoteClientFromState()
+			if cerr != nil {
+				return cerr
+			}
+			entries, cerr := client.GetAudit(limit)
+			if cerr != nil {
+				return fmt.Errorf("get audit (remote): %w", cerr)
+			}
+			if len(entries) == 0 {
+				fmt.Println("  No audit entries.")
+				return nil
+			}
+			fmt.Println()
+			fmt.Printf("  %-20s %-12s %-22s %-12s %s\n", "TIME", "OPERATOR", "ACTION", "TARGET", "DETAIL")
+			fmt.Printf("  %-20s %-12s %-22s %-12s %s\n",
+				strings.Repeat("-", 20), strings.Repeat("-", 12), strings.Repeat("-", 22),
+				strings.Repeat("-", 12), strings.Repeat("-", 30))
+			for _, e := range entries {
+				ts := fmt.Sprintf("%v", e["timestamp"])
+				if len(ts) > 19 {
+					ts = ts[:19]
+				}
+				op := fmt.Sprintf("%v", e["operator"])
+				action := fmt.Sprintf("%v", e["action"])
+				target := ""
+				if tt, ok := e["target_type"]; ok && tt != nil && fmt.Sprintf("%v", tt) != "" {
+					target = fmt.Sprintf("%v", tt)
+					if tid, ok := e["target_id"]; ok && tid != nil && fmt.Sprintf("%v", tid) != "" {
+						target += ":" + fmt.Sprintf("%v", tid)
+					}
+				}
+				if len(target) > 12 {
+					target = target[:9] + "..."
+				}
+				detail := fmt.Sprintf("%v", e["detail"])
+				if len(detail) > 30 {
+					detail = detail[:27] + "..."
+				}
+				fmt.Printf("  %-20s %-12s %-22s %-12s %s\n",
+					ts, truncate(op, 12), action, target, detail)
+			}
+			fmt.Printf("\n  %d entries shown (remote).\n\n", len(entries))
+			return nil
 		}
 
-		limit, _ := cmd.Flags().GetInt("limit")
 		entries, err := audit.List(database, limit)
 		if err != nil {
 			return err

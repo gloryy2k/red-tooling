@@ -79,7 +79,35 @@ var credsCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		database, engName, err := requireDB()
 		if err != nil {
-			return err
+			if !remote.IsJoined() {
+				return fmt.Errorf("no active engagement and not joined to a server — use 'rt join' first")
+			}
+			client, _, cerr := remoteClientFromState()
+			if cerr != nil {
+				return cerr
+			}
+			list, cerr := client.ListCreds()
+			if cerr != nil {
+				return fmt.Errorf("list creds (remote): %w", cerr)
+			}
+			if len(list) == 0 {
+				fmt.Println("  No credentials stored.")
+				return nil
+			}
+			fmt.Println()
+			fmt.Printf("  %-4s %-30s %-20s %-12s %-20s\n", "ID", "USERNAME", "SECRET", "TYPE", "HOST")
+			fmt.Printf("  %-4s %-30s %-20s %-12s %-20s\n",
+				strings.Repeat("-", 4), strings.Repeat("-", 30), strings.Repeat("-", 20),
+				strings.Repeat("-", 12), strings.Repeat("-", 20))
+			for _, c := range list {
+				username := fmt.Sprintf("%v", c["username"])
+				credType := fmt.Sprintf("%v", c["cred_type"])
+				host := fmt.Sprintf("%v", c["host"])
+				fmt.Printf("  %-4v %-30s %-20s %-12s %-20s\n",
+					c["id"], truncate(username, 30), "********", credType, truncate(host, 20))
+			}
+			fmt.Printf("\n  %d credential(s) (remote)\n\n", len(list))
+			return nil
 		}
 
 		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))

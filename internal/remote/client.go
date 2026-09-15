@@ -219,6 +219,158 @@ func (c *Client) GetScope() (map[string]interface{}, error) {
 	return result, nil
 }
 
+func (c *Client) ListFindings() ([]map[string]interface{}, error) {
+	return c.getJSON("/api/findings")
+}
+
+func (c *Client) VerifyFinding(id int64, status, note string) error {
+	return c.postJSON(fmt.Sprintf("/api/findings/%d/verify", id), map[string]string{
+		"status": status,
+		"note":   note,
+	}, nil)
+}
+
+func (c *Client) SetRecommendation(id int64, rec string) error {
+	return c.postJSON(fmt.Sprintf("/api/findings/%d/recommend", id), map[string]string{
+		"recommendation": rec,
+	}, nil)
+}
+
+func (c *Client) UpdateFinding(id int64, data map[string]interface{}) error {
+	return c.putJSON(fmt.Sprintf("/api/findings/%d", id), data)
+}
+
+func (c *Client) ListCreds() ([]map[string]interface{}, error) {
+	return c.getJSON("/api/creds")
+}
+
+func (c *Client) GetChecklist() (map[string]interface{}, error) {
+	r, err := http.NewRequest("GET", c.BaseURL+"/api/checklist", nil)
+	if err != nil {
+		return nil, err
+	}
+	r.Header.Set("X-API-Key", c.APIKey)
+	resp, err := c.HTTPClient.Do(r)
+	if err != nil {
+		return nil, fmt.Errorf("cannot reach server: %w", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("server error (%d): %s", resp.StatusCode, string(body))
+	}
+	var result map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("decode checklist: %w", err)
+	}
+	return result, nil
+}
+
+func (c *Client) LoadChecklistPreset(preset string) error {
+	return c.postJSON("/api/checklist", map[string]string{"preset": preset}, nil)
+}
+
+func (c *Client) AddChecklistItem(category, item string) error {
+	return c.postJSON("/api/checklist", map[string]string{"category": category, "item": item}, nil)
+}
+
+func (c *Client) ToggleChecklist(id int64, checked bool, evidenceID int64) error {
+	return c.postJSON("/api/checklist/toggle", map[string]interface{}{
+		"id":          id,
+		"checked":     checked,
+		"evidence_id": evidenceID,
+	}, nil)
+}
+
+func (c *Client) GetTimeline() ([]map[string]interface{}, error) {
+	return c.getJSON("/api/timeline")
+}
+
+func (c *Client) GetAudit(limit int) ([]map[string]interface{}, error) {
+	return c.getJSON(fmt.Sprintf("/api/audit?limit=%d", limit))
+}
+
+func (c *Client) GetReport(format string, opts map[string]string) (string, error) {
+	q := fmt.Sprintf("/api/report?format=%s", format)
+	for k, v := range opts {
+		if v == "true" {
+			q += "&" + k + "=true"
+		}
+	}
+	r, err := http.NewRequest("GET", c.BaseURL+q, nil)
+	if err != nil {
+		return "", err
+	}
+	r.Header.Set("X-API-Key", c.APIKey)
+	resp, err := c.HTTPClient.Do(r)
+	if err != nil {
+		return "", fmt.Errorf("cannot reach server: %w", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("server error (%d): %s", resp.StatusCode, string(body))
+	}
+	return string(body), nil
+}
+
+func (c *Client) ListAttachments(evidenceID string) ([]map[string]interface{}, error) {
+	path := "/api/attachments"
+	if evidenceID != "" {
+		path += "?evidence_id=" + evidenceID
+	}
+	return c.getJSON(path)
+}
+
+func (c *Client) getJSON(path string) ([]map[string]interface{}, error) {
+	r, err := http.NewRequest("GET", c.BaseURL+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	r.Header.Set("X-API-Key", c.APIKey)
+	resp, err := c.HTTPClient.Do(r)
+	if err != nil {
+		return nil, fmt.Errorf("cannot reach server: %w", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("server error (%d): %s", resp.StatusCode, string(body))
+	}
+	var result []map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+	return result, nil
+}
+
+func (c *Client) putJSON(path string, body interface{}) error {
+	data, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("marshal request: %w", err)
+	}
+	req, err := http.NewRequest("PUT", c.BaseURL+path, bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", c.APIKey)
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		var errResp struct{ Error string `json:"error"` }
+		if json.Unmarshal(respBody, &errResp) == nil && errResp.Error != "" {
+			return fmt.Errorf("server error (%d): %s", resp.StatusCode, errResp.Error)
+		}
+		return fmt.Errorf("server error (%d): %s", resp.StatusCode, string(respBody))
+	}
+	return nil
+}
+
 func (c *Client) Ping() error {
 	req, err := http.NewRequest("GET", c.BaseURL+"/api/overview", nil)
 	if err != nil {

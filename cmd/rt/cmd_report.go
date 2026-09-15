@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/user/rt/internal/remote"
 	"github.com/user/rt/internal/report"
 )
 
@@ -13,12 +14,6 @@ var reportCmd = &cobra.Command{
 	Use:   "report",
 	Short: "Generate engagement report",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		database, engName, err := requireDB()
-		if err != nil {
-			return err
-		}
-		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
-
 		htmlFlag, _ := cmd.Flags().GetBool("html")
 		execFlag, _ := cmd.Flags().GetBool("exec")
 		techFlag, _ := cmd.Flags().GetBool("tech")
@@ -26,6 +21,48 @@ var reportCmd = &cobra.Command{
 		verifiedFlag, _ := cmd.Flags().GetBool("verified")
 		outFile, _ := cmd.Flags().GetString("output")
 		tmplName, _ := cmd.Flags().GetString("template")
+
+		database, engName, err := requireDB()
+		if err != nil {
+			if !remote.IsJoined() {
+				return fmt.Errorf("no active engagement and not joined to a server — use 'rt join' first")
+			}
+			client, _, cerr := remoteClientFromState()
+			if cerr != nil {
+				return cerr
+			}
+			format := "markdown"
+			if htmlFlag {
+				format = "html"
+			}
+			opts := map[string]string{}
+			if execFlag {
+				opts["exec"] = "true"
+			}
+			if techFlag {
+				opts["tech"] = "true"
+			}
+			if critFlag {
+				opts["critical"] = "true"
+			}
+			if verifiedFlag {
+				opts["verified"] = "true"
+			}
+			content, cerr := client.GetReport(format, opts)
+			if cerr != nil {
+				return fmt.Errorf("get report (remote): %w", cerr)
+			}
+			if outFile != "" {
+				if err := os.WriteFile(outFile, []byte(content), 0600); err != nil {
+					return fmt.Errorf("write report: %w", err)
+				}
+				fmt.Printf("  [remote] Report written to: %s\n", outFile)
+			} else {
+				fmt.Print(content)
+			}
+			return nil
+		}
+		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
 
 		opts := report.Options{
 			ExecOnly:     execFlag,
@@ -39,7 +76,6 @@ var reportCmd = &cobra.Command{
 			return err
 		}
 
-		// Warn about findings missing PoC notes
 		var missingNotes []int64
 		for _, f := range data.Findings {
 			if f.Notes == "" {

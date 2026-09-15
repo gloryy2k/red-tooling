@@ -85,7 +85,37 @@ var findingsCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		database, engName, err := requireDB()
 		if err != nil {
-			return err
+			if !remote.IsJoined() {
+				return fmt.Errorf("no active engagement and not joined to a server — use 'rt join' first")
+			}
+			client, _, cerr := remoteClientFromState()
+			if cerr != nil {
+				return cerr
+			}
+			list, cerr := client.ListFindings()
+			if cerr != nil {
+				return fmt.Errorf("list findings (remote): %w", cerr)
+			}
+			if len(list) == 0 {
+				fmt.Println("  No findings.")
+				return nil
+			}
+			fmt.Println()
+			fmt.Printf("  %-4s %-10s %-12s %-50s\n", "ID", "PRIORITY", "STATUS", "TITLE")
+			fmt.Printf("  %-4s %-10s %-12s %-50s\n",
+				strings.Repeat("-", 4), strings.Repeat("-", 10), strings.Repeat("-", 12), strings.Repeat("-", 50))
+			for _, f := range list {
+				title := fmt.Sprintf("%v", f["title"])
+				if len(title) > 48 {
+					title = title[:45] + "..."
+				}
+				pri := fmt.Sprintf("%v", f["priority"])
+				status := fmt.Sprintf("%v", f["verified"])
+				id := f["id"]
+				fmt.Printf("  %-4v %-10s %-12s %-50s\n", id, pri, status, title)
+			}
+			fmt.Printf("\n  %d finding(s) (remote)\n\n", len(list))
+			return nil
 		}
 		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
 
@@ -139,11 +169,6 @@ var verifyFindingCmd = &cobra.Command{
 	Short: "Mark a finding as confirmed or false-positive",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		database, _, err := requireDB()
-		if err != nil {
-			return err
-		}
-
 		id, err := strconv.ParseInt(args[0], 10, 64)
 		if err != nil {
 			return fmt.Errorf("invalid finding ID: %s", args[0])
@@ -158,6 +183,22 @@ var verifyFindingCmd = &cobra.Command{
 		screenshot, _ := cmd.Flags().GetString("screenshot")
 		noScreenshot, _ := cmd.Flags().GetBool("no-screenshot")
 		operator := getOperator()
+
+		database, _, dbErr := requireDB()
+		if dbErr != nil {
+			if !remote.IsJoined() {
+				return fmt.Errorf("no active engagement and not joined to a server — use 'rt join' first")
+			}
+			client, _, cerr := remoteClientFromState()
+			if cerr != nil {
+				return cerr
+			}
+			if err := client.VerifyFinding(id, status, note); err != nil {
+				return fmt.Errorf("verify finding (remote): %w", err)
+			}
+			fmt.Printf("  [remote] Finding #%d marked as %s\n", id, status)
+			return nil
+		}
 
 		if status == "confirmed" && screenshot == "" && !noScreenshot {
 			fmt.Println("  WARNING: No screenshot provided for confirmed finding.")
@@ -229,19 +270,29 @@ var findingNoteCmd = &cobra.Command{
 	Short: "Set PoC notes for a finding (used in report Proof of Concept section)",
 	Args:  cobra.MinimumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		database, _, err := requireDB()
-		if err != nil {
-			return err
-		}
-
 		id, err := strconv.ParseInt(args[0], 10, 64)
 		if err != nil {
 			return fmt.Errorf("invalid finding ID: %s", args[0])
 		}
-
 		notes := strings.Join(args[1:], " ")
-		operator := getOperator()
 
+		database, _, dbErr := requireDB()
+		if dbErr != nil {
+			if !remote.IsJoined() {
+				return fmt.Errorf("no active engagement and not joined to a server — use 'rt join' first")
+			}
+			client, _, cerr := remoteClientFromState()
+			if cerr != nil {
+				return cerr
+			}
+			if err := client.UpdateFinding(id, map[string]interface{}{"notes": notes}); err != nil {
+				return fmt.Errorf("set notes (remote): %w", err)
+			}
+			fmt.Printf("  [remote] PoC notes set for Finding #%d\n", id)
+			return nil
+		}
+
+		operator := getOperator()
 		if err := findings.SetNotes(database, id, notes, operator); err != nil {
 			return err
 		}
@@ -256,19 +307,29 @@ var recommendCmd = &cobra.Command{
 	Short: "Set a recommendation for a finding",
 	Args:  cobra.MinimumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		database, _, err := requireDB()
-		if err != nil {
-			return err
-		}
-
 		id, err := strconv.ParseInt(args[0], 10, 64)
 		if err != nil {
 			return fmt.Errorf("invalid finding ID: %s", args[0])
 		}
-
 		rec := strings.Join(args[1:], " ")
-		operator := getOperator()
 
+		database, _, dbErr := requireDB()
+		if dbErr != nil {
+			if !remote.IsJoined() {
+				return fmt.Errorf("no active engagement and not joined to a server — use 'rt join' first")
+			}
+			client, _, cerr := remoteClientFromState()
+			if cerr != nil {
+				return cerr
+			}
+			if err := client.SetRecommendation(id, rec); err != nil {
+				return fmt.Errorf("set recommendation (remote): %w", err)
+			}
+			fmt.Printf("  [remote] Recommendation set for Finding #%d\n", id)
+			return nil
+		}
+
+		operator := getOperator()
 		if err := findings.SetRecommendation(database, id, rec, operator); err != nil {
 			return err
 		}

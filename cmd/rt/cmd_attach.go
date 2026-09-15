@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/user/rt/internal/attachments"
+	"github.com/user/rt/internal/remote"
 )
 
 var attachCmd = &cobra.Command{
@@ -44,7 +45,42 @@ var attachmentsCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		database, engName, err := requireDB()
 		if err != nil {
-			return err
+			if !remote.IsJoined() {
+				return fmt.Errorf("no active engagement and not joined to a server — use 'rt join' first")
+			}
+			client, _, cerr := remoteClientFromState()
+			if cerr != nil {
+				return cerr
+			}
+			evIDStr := ""
+			if len(args) > 0 {
+				evIDStr = args[0]
+			}
+			rlist, cerr := client.ListAttachments(evIDStr)
+			if cerr != nil {
+				return fmt.Errorf("list attachments (remote): %w", cerr)
+			}
+			if len(rlist) == 0 {
+				fmt.Println("  No attachments.")
+				return nil
+			}
+			fmt.Println()
+			fmt.Printf("  %-4s %-6s %-30s %-12s %s\n", "ID", "EV#", "FILENAME", "TYPE", "CAPTION")
+			fmt.Printf("  %-4s %-6s %-30s %-12s %s\n",
+				strings.Repeat("-", 4), strings.Repeat("-", 6), strings.Repeat("-", 30),
+				strings.Repeat("-", 12), strings.Repeat("-", 20))
+			for _, a := range rlist {
+				filename := fmt.Sprintf("%v", a["filename"])
+				filetype := fmt.Sprintf("%v", a["filetype"])
+				caption := fmt.Sprintf("%v", a["caption"])
+				if len(caption) > 30 {
+					caption = caption[:27] + "..."
+				}
+				fmt.Printf("  %-4v %-6v %-30s %-12s %s\n",
+					a["id"], a["evidence_id"], truncate(filename, 30), filetype, caption)
+			}
+			fmt.Printf("\n  %d attachment(s) (remote)\n\n", len(rlist))
+			return nil
 		}
 
 		var list []attachments.Attachment
