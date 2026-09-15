@@ -16,12 +16,12 @@ import (
 type Credential struct {
 	ID               int64  `json:"id"`
 	EngagementID     string `json:"engagement_id"`
-	Username         string `json:"Username"`
-	CredType         string `json:"CredType"`
-	Host             string `json:"Host"`
+	Username         string `json:"username"`
+	CredType         string `json:"cred_type"`
+	Host             string `json:"host"`
 	SourceEvidenceID int64  `json:"source_evidence_id"`
-	FoundAt          string `json:"FoundAt"`
-	Notes            string `json:"Notes"`
+	FoundAt          string `json:"found_at"`
+	Notes            string `json:"notes"`
 }
 
 // Store adds a new credential with the secret AES-GCM encrypted (double-layer inside SQLCipher).

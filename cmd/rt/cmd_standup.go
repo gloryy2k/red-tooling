@@ -192,21 +192,61 @@ var wipeCmd = &cobra.Command{
 		}
 
 		engDir := filepath.Join(rtHome, "engagements", engName)
-		if _, err := os.Stat(engDir); os.IsNotExist(err) {
+		dataDir := filepath.Join(rtHome, "data")
+		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+
+		engDirExists := false
+		if _, err := os.Stat(engDir); err == nil {
+			engDirExists = true
+		}
+
+		// DB may be stored under engID (kebab-case) or original name
+		dbNames := []string{engID, engName}
+		dbFound := ""
+		for _, name := range dbNames {
+			if _, err := os.Stat(filepath.Join(dataDir, name+".db")); err == nil {
+				dbFound = name
+				break
+			}
+			if _, err := os.Stat(filepath.Join(dataDir, name+".db.enc")); err == nil {
+				dbFound = name
+				break
+			}
+		}
+
+		if !engDirExists && dbFound == "" {
 			return fmt.Errorf("engagement %q not found", engName)
 		}
 
 		// Try to audit-log the wipe if possible
-		dbPath := filepath.Join(engDir, engName+".db")
-		if _, err := os.Stat(dbPath); err == nil {
+		if dbFound != "" {
+			dbPath := filepath.Join(dataDir, dbFound+".db")
 			if d, err := sql.Open("sqlite", dbPath); err == nil {
 				audit.Log(d, getOperator(), "engagement.wipe", "engagement", engName, nil)
 				d.Close()
 			}
 		}
 
-		if err := os.RemoveAll(engDir); err != nil {
-			return fmt.Errorf("wipe failed: %w", err)
+		// Remove engagement directory (CLAUDE.md + skills)
+		if engDirExists {
+			if err := os.RemoveAll(engDir); err != nil {
+				return fmt.Errorf("wipe engagements dir: %w", err)
+			}
+		}
+
+		// Remove database files under both possible names
+		for _, name := range dbNames {
+			for _, suffix := range []string{".db", ".db-shm", ".db-wal", ".db.enc", ".db.key"} {
+				os.Remove(filepath.Join(dataDir, name+suffix))
+			}
+		}
+
+		// Clear active pointer if this engagement was active
+		activeFile := filepath.Join(rtHome, "active")
+		if data, err := os.ReadFile(activeFile); err == nil {
+			if strings.TrimSpace(string(data)) == engName {
+				os.Remove(activeFile)
+			}
 		}
 
 		fmt.Printf("  Engagement %q permanently deleted\n", engName)

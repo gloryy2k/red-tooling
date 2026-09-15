@@ -871,7 +871,7 @@ async function loadOverview(){
   document.getElementById('topbar-chain').className='topbar-status '+(ov.chain_intact?'ok':'warn');
 
   document.getElementById('overview-findings').innerHTML=(f||[]).slice(0,6).map(x=>
-    '<tr class="clickable" onclick="goPage(\'findings\')"><td>'+sevBadge(x.Priority)+'</td><td>'+esc(x.Title)+'</td><td class="mitre">'+(x.Mitre||[]).join(', ')+'</td><td>'+statusSpan(x.Verified)+'</td></tr>'
+    '<tr class="clickable" onclick="goPage(\'findings\')"><td>'+sevBadge(x.priority)+'</td><td>'+esc(x.title)+'</td><td class="mitre">'+(x.mitre||[]).join(', ')+'</td><td>'+statusSpan(x.verified)+'</td></tr>'
   ).join('')||'<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:20px">No findings yet</td></tr>';
 
   // Activity from timeline
@@ -1002,9 +1002,9 @@ async function loadFindings(){
   const f=await api('/api/findings');
   if(!f)return;
   cachedFindings=f;
-  const crit=f.filter(x=>x.Priority==='critical').length;
-  const high=f.filter(x=>x.Priority==='high').length;
-  const uv=f.filter(x=>x.Verified==='unverified').length;
+  const crit=f.filter(x=>x.priority==='critical').length;
+  const high=f.filter(x=>x.priority==='high').length;
+  const uv=f.filter(x=>x.verified==='unverified').length;
   document.getElementById('findings-filters').innerHTML=
     '<div class="filter-chip active" data-filter="all">All ('+f.length+')</div>'+
     (crit?'<div class="filter-chip" data-filter="critical" style="background:var(--red-bg);color:var(--red);border-color:transparent">Critical ('+crit+')</div>':'')+
@@ -1019,14 +1019,14 @@ async function loadFindings(){
     chip.classList.add('active');
     const fl=chip.dataset.filter;
     if(fl==='all')renderFindings(cachedFindings);
-    else if(fl==='critical')renderFindings(cachedFindings.filter(x=>x.Priority==='critical'));
-    else if(fl==='high')renderFindings(cachedFindings.filter(x=>x.Priority==='high'));
-    else if(fl==='unverified')renderFindings(cachedFindings.filter(x=>x.Verified==='unverified'));
+    else if(fl==='critical')renderFindings(cachedFindings.filter(x=>x.priority==='critical'));
+    else if(fl==='high')renderFindings(cachedFindings.filter(x=>x.priority==='high'));
+    else if(fl==='unverified')renderFindings(cachedFindings.filter(x=>x.verified==='unverified'));
   });
 }
 function renderFindings(f){
   document.getElementById('findings-table').innerHTML=(f||[]).map(x=>
-    '<tr class="clickable"><td onclick="event.stopPropagation()"><input type="checkbox" class="finding-cb" value="'+x.ID+'" onchange="updateFindingBulkBar()"></td><td onclick="showFindingDetail('+x.ID+')">'+x.ID+'</td><td onclick="showFindingDetail('+x.ID+')">'+sevBadge(x.Priority)+'</td><td onclick="showFindingDetail('+x.ID+')">'+esc(x.Title)+'</td><td onclick="showFindingDetail('+x.ID+')" class="mitre">'+(x.Mitre||[]).slice(0,2).join(', ')+'</td><td onclick="showFindingDetail('+x.ID+')">'+statusSpan(x.Verified)+'</td><td onclick="showFindingDetail('+x.ID+')">'+(x.Recommendation?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--muted)">—</span>')+'</td><td onclick="showFindingDetail('+x.ID+')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></td></tr>'
+    '<tr class="clickable"><td onclick="event.stopPropagation()"><input type="checkbox" class="finding-cb" value="'+x.id+'" onchange="updateFindingBulkBar()"></td><td onclick="showFindingDetail('+x.id+')">'+x.id+'</td><td onclick="showFindingDetail('+x.id+')">'+sevBadge(x.priority)+'</td><td onclick="showFindingDetail('+x.id+')">'+esc(x.title)+'</td><td onclick="showFindingDetail('+x.id+')" class="mitre">'+(x.mitre||[]).slice(0,2).join(', ')+'</td><td onclick="showFindingDetail('+x.id+')">'+statusSpan(x.verified)+'</td><td onclick="showFindingDetail('+x.id+')">'+(x.recommendation?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--muted)">—</span>')+'</td><td onclick="showFindingDetail('+x.id+')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></td></tr>'
   ).join('')||'<tr><td colspan="8" style="color:var(--muted);text-align:center;padding:20px">No findings</td></tr>';
   updateFindingBulkBar();
 }
@@ -1037,16 +1037,16 @@ async function showFindingDetail(id){
   const att=await loadFindingAttachments(id);
   const body=document.getElementById('detail-body');
   body.innerHTML=
-    '<div style="margin-bottom:12px">'+sevBadge(f.Priority)+' '+(f.Mitre||[]).map(m=>'<span class="mitre" style="margin-left:6px">'+esc(m)+'</span>').join('')+'</div>'+
-    '<div class="detail-field"><div class="lbl">Title</div><div class="val" style="font-weight:500">'+esc(f.Title)+'</div></div>'+
-    '<div class="detail-field"><div class="lbl">Description</div><div class="val" style="color:var(--text-2)">'+(esc(f.Description)||'<em style="color:var(--muted)">No description</em>')+'</div></div>'+
-    '<div class="detail-field"><div class="lbl">Host</div><div class="val">'+(f.Host?'<span class="tag">'+esc(f.Host)+'</span>':'<span style="color:var(--muted)">—</span>')+'</div></div>'+
-    '<div class="detail-field"><div class="lbl">Status</div><div class="val">'+statusSpan(f.Verified)+(f.VerifiedBy?' by '+esc(f.VerifiedBy):'')+(f.VerifiedAt?' at '+fmtDate(f.VerifiedAt):'')+'</div></div>'+
-    '<div class="detail-field"><div class="lbl">Verification note</div><div class="val" style="color:var(--text-2)">'+(esc(f.Notes)||'<em style="color:var(--muted)">—</em>')+'</div></div>'+
-    '<div class="detail-field"><div class="lbl">Linked evidence <button class="btn sm" style="margin-left:8px;padding:2px 8px;font-size:11px" onclick="showLinkEvidence('+f.ID+')">+ Link</button></div><div class="val" id="linked-ev-'+f.ID+'">'+(f.EvidenceIDs&&f.EvidenceIDs.length?f.EvidenceIDs.map(eid=>'<span style="display:inline-flex;align-items:center;gap:2px;margin-right:8px"><a class="link" onclick="showEvidenceDetail('+eid+')">#'+eid+'</a><button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:0 2px" title="Unlink" onclick="unlinkEvidence('+f.ID+','+eid+')">&times;</button></span>').join(''):'<em style="color:var(--muted)">none</em>')+'</div></div>'+
+    '<div style="margin-bottom:12px">'+sevBadge(f.priority)+' '+(f.mitre||[]).map(m=>'<span class="mitre" style="margin-left:6px">'+esc(m)+'</span>').join('')+'</div>'+
+    '<div class="detail-field"><div class="lbl">Title</div><div class="val" style="font-weight:500">'+esc(f.title)+'</div></div>'+
+    '<div class="detail-field"><div class="lbl">Description</div><div class="val" style="color:var(--text-2)">'+(esc(f.description)||'<em style="color:var(--muted)">No description</em>')+'</div></div>'+
+    '<div class="detail-field"><div class="lbl">Host</div><div class="val">'+(f.host?'<span class="tag">'+esc(f.host)+'</span>':'<span style="color:var(--muted)">—</span>')+'</div></div>'+
+    '<div class="detail-field"><div class="lbl">Status</div><div class="val">'+statusSpan(f.verified)+(f.verified_by?' by '+esc(f.verified_by):'')+(f.verified_at?' at '+fmtDate(f.verified_at):'')+'</div></div>'+
+    '<div class="detail-field"><div class="lbl">Verification note</div><div class="val" style="color:var(--text-2)">'+(esc(f.notes)||'<em style="color:var(--muted)">—</em>')+'</div></div>'+
+    '<div class="detail-field"><div class="lbl">Linked evidence <button class="btn sm" style="margin-left:8px;padding:2px 8px;font-size:11px" onclick="showLinkEvidence('+f.id+')">+ Link</button></div><div class="val" id="linked-ev-'+f.id+'">'+(f.evidence_ids&&f.evidence_ids.length?f.evidence_ids.map(eid=>'<span style="display:inline-flex;align-items:center;gap:2px;margin-right:8px"><a class="link" onclick="showEvidenceDetail('+eid+')">#'+eid+'</a><button style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:0 2px" title="Unlink" onclick="unlinkEvidence('+f.id+','+eid+')">&times;</button></span>').join(''):'<em style="color:var(--muted)">none</em>')+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Screenshots & Attachments ('+att.length+')</div><div class="val">'+renderAttachments(att)+'</div></div>'+
-    '<div class="detail-field"><div class="lbl">Recommendation</div><div class="val" style="color:var(--text-2)">'+(esc(f.Recommendation)||'<em style="color:var(--muted)">None yet</em>')+'</div></div>'+
-    '<div class="detail-field"><div class="lbl">Created</div><div class="val">'+fmtDate(f.CreatedAt)+'</div></div>'+
+    '<div class="detail-field"><div class="lbl">Recommendation</div><div class="val" style="color:var(--text-2)">'+(esc(f.recommendation)||'<em style="color:var(--muted)">None yet</em>')+'</div></div>'+
+    '<div class="detail-field"><div class="lbl">Created</div><div class="val">'+fmtDate(f.created_at)+'</div></div>'+
     '<div class="detail-field"><div class="lbl">Comments</div><div class="val"><div id="comment-thread-'+id+'" class="comment-thread"></div>'+
     '<div class="comment-form"><textarea id="comment-input-'+id+'" placeholder="Add a comment..." rows="1"></textarea><button class="btn sm primary" onclick="addComment('+id+')">Post</button></div></div></div>';
   loadComments(id);
@@ -1092,11 +1092,11 @@ async function showEditFinding(id){
   const f=await api('/api/findings/'+id);
   if(!f)return;
   showModal('Edit finding #'+id,
-    '<label>Title</label><input id="m-etitle" value="'+esc(f.Title)+'">'+
-    '<label>Priority</label><select id="m-epri"><option'+(f.Priority==='critical'?' selected':'')+'>critical</option><option'+(f.Priority==='high'?' selected':'')+'>high</option><option'+(f.Priority==='medium'?' selected':'')+'>medium</option><option'+(f.Priority==='low'?' selected':'')+'>low</option><option'+(f.Priority==='info'?' selected':'')+'>info</option></select>'+
-    '<label>Host</label><input id="m-ehost" value="'+esc(f.Host||'')+'">'+
-    '<label>Description</label><textarea id="m-edesc">'+esc(f.Description)+'</textarea>'+
-    '<label>MITRE</label><input id="m-emitre" value="'+(f.Mitre||[]).join(', ')+'">'
+    '<label>Title</label><input id="m-etitle" value="'+esc(f.title)+'">'+
+    '<label>Priority</label><select id="m-epri"><option'+(f.priority==='critical'?' selected':'')+'>critical</option><option'+(f.priority==='high'?' selected':'')+'>high</option><option'+(f.priority==='medium'?' selected':'')+'>medium</option><option'+(f.priority==='low'?' selected':'')+'>low</option><option'+(f.priority==='info'?' selected':'')+'>info</option></select>'+
+    '<label>Host</label><input id="m-ehost" value="'+esc(f.host||'')+'">'+
+    '<label>Description</label><textarea id="m-edesc">'+esc(f.description)+'</textarea>'+
+    '<label>MITRE</label><input id="m-emitre" value="'+(f.mitre||[]).join(', ')+'">'
   ,async()=>{
     await put('/api/findings/'+id,{title:gv('m-etitle'),priority:gv('m-epri'),description:gv('m-edesc'),host:gv('m-ehost'),mitre:gv('m-emitre').split(',').map(s=>s.trim()).filter(Boolean)});
     closeModal();loadFindings();showFindingDetail(id);toast('Finding updated','success');
@@ -1135,13 +1135,13 @@ async function loadCreds(){
   if(!c)return;
   document.getElementById('creds-table').innerHTML=(c||[]).map(x=>
     '<tr><td><input type="checkbox" class="cred-cb" value="'+x.id+'" onchange="updateCredBulkBar()"></td>'+
-    '<td style="font-weight:500" class="mono">'+esc(x.Username)+'</td>'+
+    '<td style="font-weight:500" class="mono">'+esc(x.username)+'</td>'+
     '<td><span class="mono" id="cred-secret-'+x.id+'" style="letter-spacing:2px">••••••••</span> '+
     '<button class="btn sm ghost" onclick="revealCred('+x.id+')" title="Reveal">👁</button> '+
     '<button class="btn sm ghost" onclick="copyCred('+x.id+')" title="Copy">📋</button></td>'+
-    '<td>'+esc(x.CredType)+'</td>'+
-    '<td class="mono">'+esc(x.Host)+'</td>'+
-    '<td>'+(x.SourceEvidenceID?'<a class="link" onclick="goPage(\'evidence\');setTimeout(()=>showEvidenceDetail('+x.SourceEvidenceID+'),300)">#'+x.SourceEvidenceID+'</a>':'—')+'</td>'+
+    '<td>'+esc(x.cred_type)+'</td>'+
+    '<td class="mono">'+esc(x.host)+'</td>'+
+    '<td>'+(x.source_evidence_id?'<a class="link" onclick="goPage(\'evidence\');setTimeout(()=>showEvidenceDetail('+x.source_evidence_id+'),300)">#'+x.source_evidence_id+'</a>':'—')+'</td>'+
     '<td><button class="btn sm danger" onclick="deleteCred('+x.id+')">Delete</button></td></tr>'
   ).join('')||'<tr><td colspan="7" style="color:var(--muted);text-align:center;padding:20px">No credentials</td></tr>';
   updateCredBulkBar();
@@ -1642,7 +1642,7 @@ async function loadTopology(){
   var nodes=[],edges=[];
   var hostSet={};
   scope.forEach(s=>{hostSet[s.Host]=s});
-  creds.forEach(c=>{if(c.Host&&!hostSet[c.Host])hostSet[c.Host]={Host:c.Host,Tested:0}});
+  creds.forEach(c=>{if(c.host&&!hostSet[c.host])hostSet[c.host]={Host:c.host,Tested:0}});
 
   var hosts=Object.values(hostSet);
   if(!hosts.length){
@@ -1657,17 +1657,17 @@ async function loadTopology(){
     var angle=(2*Math.PI*i/hosts.length)-Math.PI/2;
     var x=centerX+radius*Math.cos(angle);
     var y=centerY+radius*Math.sin(angle);
-    var hostCreds=creds.filter(c=>c.Host===h.Host).length;
-    var hostFindings=findings.filter(f=>(f.Mitre||[]).length>0).length;
+    var hostCreds=creds.filter(c=>c.host===h.Host).length;
+    var hostFindings=findings.filter(f=>(f.mitre||[]).length>0).length;
     nodes.push({id:h.Host,x:x,y:y,tested:h.Tested,creds:hostCreds,host:h});
   });
 
   // Edges: connect hosts that share credentials (same username)
   var userHosts={};
   creds.forEach(c=>{
-    if(!c.Host||!c.Username)return;
-    if(!userHosts[c.Username])userHosts[c.Username]=new Set();
-    userHosts[c.Username].add(c.Host);
+    if(!c.host||!c.username)return;
+    if(!userHosts[c.username])userHosts[c.username]=new Set();
+    userHosts[c.username].add(c.host);
   });
   Object.values(userHosts).forEach(hset=>{
     var arr=Array.from(hset);
@@ -1783,16 +1783,16 @@ async function loadAttackMap(){
   // Filter by host if selected
   var hostFilter=sel.value;
   if(hostFilter){
-    findings=findings.filter(function(f){return (f.Host||'')===hostFilter});
+    findings=findings.filter(function(f){return (f.host||'')===hostFilter});
   }
   var mapped={};
   TACTICS.forEach(t=>{mapped[t.id]=[]});
   findings.forEach(f=>{
-    if(!f.Mitre||!f.Mitre.length)return;
-    f.Mitre.forEach(tid=>{
+    if(!f.mitre||!f.mitre.length)return;
+    f.mitre.forEach(tid=>{
       var tactic=getTacticForTechnique(tid);
       if(tactic&&mapped[tactic]){
-        mapped[tactic].push({technique:tid,title:f.Title,priority:f.Priority,verified:f.Verified,id:f.ID,host:f.Host||''});
+        mapped[tactic].push({technique:tid,title:f.title,priority:f.priority,verified:f.verified,id:f.id,host:f.host||''});
       }
     });
   });

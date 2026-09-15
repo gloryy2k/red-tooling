@@ -809,7 +809,7 @@ func (s *Server) handleChecklist(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, err.Error(), 500)
 		return
 	}
-	total, done := checklist.Stats(s.DB, s.EngID)
+	done, total := checklist.Stats(s.DB, s.EngID)
 	jsonResp(w, map[string]interface{}{
 		"items": items,
 		"total": total,

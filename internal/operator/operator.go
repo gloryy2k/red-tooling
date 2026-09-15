@@ -35,7 +35,7 @@ var RolePermissions = map[string]map[string]bool{
 	},
 	"operator": {
 		"overview": true, "live": true, "findings": true, "timeline": true,
-		"creds": true, "sessions": true, "evidence": true, "report": true,
+		"creds": true, "audit": true, "sessions": true, "evidence": true, "report": true,
 		"export": true, "scope": true, "checklist": true,
 	},
 	"reviewer": {

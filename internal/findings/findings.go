@@ -11,20 +11,20 @@ import (
 )
 
 type Finding struct {
-	ID             int64
-	EngagementID   string
-	Title          string
-	Description    string
-	Priority       string
-	Verified       string
-	Recommendation string
-	EvidenceIDs    []int64
-	Mitre          []string
-	CreatedAt      string
-	VerifiedBy     string
-	VerifiedAt     string
-	Notes          string
-	Host           string
+	ID             int64    `json:"id"`
+	EngagementID   string   `json:"engagement_id"`
+	Title          string   `json:"title"`
+	Description    string   `json:"description"`
+	Priority       string   `json:"priority"`
+	Verified       string   `json:"verified"`
+	Recommendation string   `json:"recommendation"`
+	EvidenceIDs    []int64  `json:"evidence_ids"`
+	Mitre          []string `json:"mitre"`
+	CreatedAt      string   `json:"created_at"`
+	VerifiedBy     string   `json:"verified_by"`
+	VerifiedAt     string   `json:"verified_at"`
+	Notes          string   `json:"notes"`
+	Host           string   `json:"host"`
 }
 
 // Create inserts a new finding.
@@ -123,14 +123,20 @@ func Verify(db *sql.DB, id int64, status, operator, note string) error {
 		updateNote,
 	)
 
-	var err error
+	var (
+		res sql.Result
+		err error
+	)
 	if note != "" {
-		_, err = db.Exec(query, status, operator, now, note, id)
+		res, err = db.Exec(query, status, operator, now, note, id)
 	} else {
-		_, err = db.Exec(query, status, operator, now, id)
+		res, err = db.Exec(query, status, operator, now, id)
 	}
 	if err != nil {
 		return fmt.Errorf("verify finding: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("finding #%d not found", id)
 	}
 
 	audit.Log(db, operator, "finding.verify", "finding", fmt.Sprintf("%d", id), map[string]string{"status": status})
