@@ -177,6 +177,48 @@ func (c *Client) GetContext() (*ContextResp, error) {
 	return &ctx, nil
 }
 
+type ScopeResp struct {
+	Added int `json:"added"`
+}
+
+func (c *Client) AddScope(hosts string) (*ScopeResp, error) {
+	var resp ScopeResp
+	if err := c.postJSON("/api/scope", map[string]string{"hosts": hosts}, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *Client) MarkScopeTested(host, sessionID string) error {
+	req := map[string]string{"host": host, "session_id": sessionID}
+	return c.postJSON("/api/scope/tested", req, nil)
+}
+
+func (c *Client) GetScope() (map[string]interface{}, error) {
+	r, err := http.NewRequest("GET", c.BaseURL+"/api/scope", nil)
+	if err != nil {
+		return nil, err
+	}
+	r.Header.Set("X-API-Key", c.APIKey)
+
+	resp, err := c.HTTPClient.Do(r)
+	if err != nil {
+		return nil, fmt.Errorf("cannot reach server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("server error (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("decode scope: %w", err)
+	}
+	return result, nil
+}
+
 func (c *Client) Ping() error {
 	req, err := http.NewRequest("GET", c.BaseURL+"/api/overview", nil)
 	if err != nil {
