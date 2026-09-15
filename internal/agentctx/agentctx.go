@@ -31,28 +31,46 @@ func GenerateContext(engName, client, scope string) error {
 	return nil
 }
 
-func writeCLAUDEMD(dir, engName, client, scope string) error {
-	engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
-	date := time.Now().Format("2006-01-02")
-
+// GenerateClaudeMDContent returns the CLAUDE.md content string for use by init-workspace.
+// When engName is empty, the engagement header is omitted (workspace-only mode).
+func GenerateClaudeMDContent(engName, client, scope string) string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("# %s — Red Team Engagement\n\n", engName))
 
-	if client != "" {
-		b.WriteString(fmt.Sprintf("**Client:** %s\n", client))
-	}
-	b.WriteString(fmt.Sprintf("**Engagement ID:** %s\n", engID))
-	b.WriteString(fmt.Sprintf("**Start Date:** %s\n\n", date))
-
-	if scope != "" {
-		b.WriteString("## Scope\n\n")
-		b.WriteString("```\n")
-		for _, s := range strings.Split(scope, ",") {
-			b.WriteString(strings.TrimSpace(s) + "\n")
+	if engName != "" {
+		engID := strings.ToLower(strings.ReplaceAll(engName, " ", "-"))
+		date := time.Now().Format("2006-01-02")
+		b.WriteString(fmt.Sprintf("# %s — Red Team Engagement\n\n", engName))
+		if client != "" {
+			b.WriteString(fmt.Sprintf("**Client:** %s\n", client))
 		}
-		b.WriteString("```\n\n")
+		b.WriteString(fmt.Sprintf("**Engagement ID:** %s\n", engID))
+		b.WriteString(fmt.Sprintf("**Start Date:** %s\n\n", date))
+
+		if scope != "" {
+			b.WriteString("## Scope\n\n")
+			b.WriteString("```\n")
+			for _, s := range strings.Split(scope, ",") {
+				b.WriteString(strings.TrimSpace(s) + "\n")
+			}
+			b.WriteString("```\n\n")
+		}
 	}
 
+	writeBody(&b)
+	return b.String()
+}
+
+// SkillFiles returns the map of skill filename → content for init-workspace.
+func SkillFiles() map[string]string {
+	return skillFiles()
+}
+
+func writeCLAUDEMD(dir, engName, client, scope string) error {
+	content := GenerateClaudeMDContent(engName, client, scope)
+	return os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte(content), 0600)
+}
+
+func writeBody(b *strings.Builder) {
 	b.WriteString("## RT — Evidence Logger\n\n")
 	b.WriteString("RT captures every command you run as evidence, syncs to a central dashboard, and maps findings to ATT&CK. You are the operator — RT is your logger.\n\n")
 
@@ -290,8 +308,6 @@ func writeCLAUDEMD(dir, engName, client, scope string) error {
 	b.WriteString("\n| `rt sync` | Pull context from server |")
 	b.WriteString("\n| `rt import FILE` | Import nmap/nuclei/CSV |")
 	b.WriteString("\n| `rt search \"keyword\"` | Search evidence |\n")
-
-	return os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte(b.String()), 0600)
 }
 
 func writeSkills(dir, engName string) error {
@@ -300,7 +316,18 @@ func writeSkills(dir, engName string) error {
 		return err
 	}
 
-	skills := map[string]string{
+	skills := skillFiles()
+	for name, content := range skills {
+		if err := os.WriteFile(filepath.Join(skillsDir, name), []byte(content), 0600); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func skillFiles() map[string]string {
+	return map[string]string{
 		"recon.md": `# Run Reconnaissance
 
 Execute network recon against the target scope.
@@ -368,12 +395,4 @@ Review progress and plan next steps.
 6. Sync from server: ` + "`rt sync`" + `
 `,
 	}
-
-	for name, content := range skills {
-		if err := os.WriteFile(filepath.Join(skillsDir, name), []byte(content), 0600); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
