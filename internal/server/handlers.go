@@ -266,6 +266,21 @@ func (s *Server) handleFindingAction(w http.ResponseWriter, r *http.Request) {
 		s.Hub.Broadcast(map[string]interface{}{"type": "finding.recommend", "id": id, "operator": op})
 		jsonResp(w, map[string]string{"status": "ok"})
 
+	case "notes":
+		var req struct {
+			Notes string `json:"notes"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			jsonErr(w, "invalid JSON", 400)
+			return
+		}
+		if err := findings.SetNotes(s.DB, id, req.Notes, op); err != nil {
+			jsonErr(w, err.Error(), 500)
+			return
+		}
+		s.Hub.Broadcast(map[string]interface{}{"type": "finding.notes", "id": id, "operator": op})
+		jsonResp(w, map[string]string{"status": "ok"})
+
 	default:
 		jsonErr(w, "unknown action", 400)
 	}

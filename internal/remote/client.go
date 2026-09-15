@@ -236,6 +236,12 @@ func (c *Client) SetRecommendation(id int64, rec string) error {
 	}, nil)
 }
 
+func (c *Client) SetFindingNotes(id int64, notes string) error {
+	return c.postJSON(fmt.Sprintf("/api/findings/%d/notes", id), map[string]string{
+		"notes": notes,
+	}, nil)
+}
+
 func (c *Client) UpdateFinding(id int64, data map[string]interface{}) error {
 	return c.putJSON(fmt.Sprintf("/api/findings/%d", id), data)
 }

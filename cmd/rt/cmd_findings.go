@@ -285,7 +285,7 @@ var findingNoteCmd = &cobra.Command{
 			if cerr != nil {
 				return cerr
 			}
-			if err := client.UpdateFinding(id, map[string]interface{}{"notes": notes}); err != nil {
+			if err := client.SetFindingNotes(id, notes); err != nil {
 				return fmt.Errorf("set notes (remote): %w", err)
 			}
 			fmt.Printf("  [remote] PoC notes set for Finding #%d\n", id)
