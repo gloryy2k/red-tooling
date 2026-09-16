@@ -95,6 +95,10 @@ func writeBody(b *strings.Builder) {
 	b.WriteString("rt exec --cmd \"netexec smb 10.0.0.1 -u '' -p '' --shares\"\n")
 	b.WriteString("```\n\n")
 	b.WriteString("Use `--cmd` when the command has quotes, pipes, or special characters.\n\n")
+	b.WriteString("### Tracking Evidence IDs\n\n")
+	b.WriteString("Every `rt exec` prints the evidence ID after syncing:\n")
+	b.WriteString("```\n  [sync] Evidence #42 synced to server\n```\n\n")
+	b.WriteString("**You MUST note these IDs.** When you discover something that becomes a finding, you need the evidence IDs to link them. Keep a mental log of which evidence IDs correspond to which commands — you will use them when creating findings.\n\n")
 
 	b.WriteString("### Output Management\n\n")
 	b.WriteString("- **Brute-force / password spray** — always use wordlist files, never loop individual commands\n")
@@ -112,10 +116,21 @@ func writeBody(b *strings.Builder) {
 
 	b.WriteString("## Creating Findings\n\n")
 	b.WriteString("Findings populate the ATT&CK kill chain on the dashboard. **No finding = invisible on the map.**\n\n")
-	b.WriteString("```bash\nrt finding \"Title\" --priority high --mitre T1078 --host 10.0.0.1\n```\n\n")
+	b.WriteString("**Always link the evidence that proves the finding using `--evidence`:**\n")
+	b.WriteString("```bash\nrt finding \"Title\" --priority high --mitre T1078 --host 10.0.0.1 --evidence 42,43\n```\n\n")
+	b.WriteString("The `--evidence` flag takes a comma-separated list of evidence IDs (from `rt exec` output). A finding without linked evidence is an unsupported claim — **always link the proof.**\n\n")
+
+	b.WriteString("### The Workflow\n\n")
+	b.WriteString("```\n")
+	b.WriteString("1. rt exec nmap -sV 10.0.0.1           → \"Evidence #42 synced\"  (note: #42)\n")
+	b.WriteString("2. rt exec --cmd \"smbclient ...\"        → \"Evidence #43 synced\"  (note: #43)\n")
+	b.WriteString("3. You discover guest write access on SMB share\n")
+	b.WriteString("4. rt finding \"Guest Write Access to share$ on 10.0.0.1\" --priority medium --mitre T1135 --host 10.0.0.1 --evidence 43\n")
+	b.WriteString("```\n\n")
+	b.WriteString("Link only the evidence entries that directly demonstrate the finding — not every command you ran against the host.\n\n")
 
 	b.WriteString("### The Rule\n\n")
-	b.WriteString("After each significant command, ask: **\"Did I just discover access, credentials, a vulnerability, or a misconfiguration with security impact?\"** If yes → create a finding. If unsure → create it (unverified findings cost nothing; missing findings leave gaps on the kill chain).\n\n")
+	b.WriteString("After each significant command, ask: **\"Did I just discover access, credentials, a vulnerability, or a misconfiguration with security impact?\"** If yes → create a finding with the evidence that proves it. If unsure → create it (unverified findings cost nothing; missing findings leave gaps on the kill chain).\n\n")
 	b.WriteString("Before creating, quick-check for duplicates: `rt findings` to see what already exists.\n\n")
 
 	b.WriteString("### Finding Categories\n\n")
@@ -205,8 +220,12 @@ func writeBody(b *strings.Builder) {
 
 	b.WriteString("## Finding Lifecycle\n\n")
 	b.WriteString("Creating a finding is step 1. Complete the lifecycle:\n\n")
-	b.WriteString("**1. Create** — immediately when discovered\n")
-	b.WriteString("```bash\nrt finding \"SMB Signing Disabled on 10.0.0.1\" --priority medium --mitre T1557.001 --host 10.0.0.1\n```\n\n")
+	b.WriteString("**1. Create with evidence** — immediately when discovered, linking the proof\n")
+	b.WriteString("```bash\n")
+	b.WriteString("# You ran: rt exec --cmd \"responder -I eth0\" → Evidence #51\n")
+	b.WriteString("# You ran: rt exec --cmd \"hashcat ...\"        → Evidence #52\n")
+	b.WriteString("rt finding \"SMB Signing Disabled on 10.0.0.1\" --priority medium --mitre T1557.001 --host 10.0.0.1 --evidence 51,52\n")
+	b.WriteString("```\n\n")
 	b.WriteString("**2. Verify** — when you have confirmed proof\n")
 	b.WriteString("```bash\n")
 	b.WriteString("rt verify-finding <id> confirmed       # you proved it's real and exploitable\n")
@@ -261,7 +280,7 @@ func writeBody(b *strings.Builder) {
 	b.WriteString("## Progress Tracking\n\n")
 	b.WriteString("**After each significant discovery:**\n")
 	b.WriteString("```bash\n")
-	b.WriteString("rt finding \"...\" --priority ... --mitre ... --host ...   # log the finding\n")
+	b.WriteString("rt finding \"...\" --priority ... --mitre ... --host ... --evidence ID1,ID2   # log finding + link proof\n")
 	b.WriteString("rt cred ...                                               # store any credentials\n")
 	b.WriteString("rt scope-tested <ip>                                      # if you've tested the host\n")
 	b.WriteString("```\n\n")
@@ -293,7 +312,7 @@ func writeBody(b *strings.Builder) {
 	b.WriteString("\n| `rt status` | Connection + sync queue |")
 	b.WriteString("\n| `rt exec <cmd>` | Run + capture evidence |")
 	b.WriteString("\n| `rt exec --cmd \"complex cmd\"` | Run with special chars |")
-	b.WriteString("\n| `rt finding \"Title\" --priority P --mitre Txxxx --host IP` | Create finding |")
+	b.WriteString("\n| `rt finding \"Title\" --priority P --mitre Txxxx --host IP --evidence ID1,ID2` | Create finding + link evidence |")
 	b.WriteString("\n| `rt verify-finding <id> confirmed` | Verify finding |")
 	b.WriteString("\n| `rt recommend <id> \"Fix description\"` | Add remediation |")
 	b.WriteString("\n| `rt cred USER SECRET --host IP` | Store credential |")
@@ -334,10 +353,10 @@ Execute network recon against the target scope.
 
 1. Check scope: ` + "`rt scope-list`" + `
 2. Pick untested hosts: ` + "`rt scope-untested`" + `
-3. Run scans: ` + "`rt exec --cmd \"nmap -sV -sC -oX /tmp/scan.xml <target>\"`" + `
+3. Run scans: ` + "`rt exec --cmd \"nmap -sV -sC -oX /tmp/scan.xml <target>\"`" + ` → note Evidence #ID
 4. Import results: ` + "`rt import /tmp/scan.xml`" + `
 5. Mark hosts tested: ` + "`rt scope-tested <ip>`" + `
-6. Create findings for significant discoveries (see CLAUDE.md Finding Categories)
+6. Create findings with evidence: ` + "`rt finding \"Title\" --priority P --mitre Txxxx --host <ip> --evidence <ID>`" + `
 7. Store any credentials found: ` + "`rt cred <user> <pass> --host <ip>`" + `
 `,
 		"exploit.md": `# Exploit Target
@@ -346,9 +365,9 @@ Run exploitation against identified vulnerabilities.
 
 1. Review findings: ` + "`rt findings`" + `
 2. For each vuln, use rt exec to capture the exploit:
-   ` + "`rt exec <exploit-command>`" + `
+   ` + "`rt exec <exploit-command>`" + ` → note the Evidence #ID from output
 3. On success:
-   - Create finding: ` + "`rt finding \"Title\" --priority critical --mitre T1190 --host <ip>`" + `
+   - Create finding with evidence: ` + "`rt finding \"Title\" --priority critical --mitre T1190 --host <ip> --evidence <ID>`" + `
    - Store creds: ` + "`rt cred <user> <pass> --host <ip>`" + `
    - Verify finding: ` + "`rt verify-finding <id> confirmed`" + `
    - Add remediation: ` + "`rt recommend <id> \"Remediation steps\"`" + `
@@ -359,11 +378,11 @@ Run exploitation against identified vulnerabilities.
 Run post-exploitation on compromised hosts.
 
 1. Enumerate the host:
-   ` + "`rt exec --cmd \"whoami /all\"`" + ` or ` + "`rt exec id`" + `
+   ` + "`rt exec --cmd \"whoami /all\"`" + ` or ` + "`rt exec id`" + ` → note Evidence #IDs
 2. Check for privilege escalation paths
 3. Dump credentials if possible
 4. Look for lateral movement opportunities
-5. Create findings for each escalation path found
+5. Create findings with evidence: ` + "`rt finding \"Title\" --priority P --mitre Txxxx --host <ip> --evidence <ID1,ID2>`" + `
 6. Store all credentials: ` + "`rt cred <user> <pass> --host <ip>`" + `
 7. Update scope: ` + "`rt scope-tested <ip>`" + `
 `,
